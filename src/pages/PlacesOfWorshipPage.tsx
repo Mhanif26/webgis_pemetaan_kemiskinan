@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { LocationPicker } from "@/components/LocationPicker";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,13 +45,35 @@ const TYPE_LABELS: Record<string, string> = {
   other: "Lainnya",
 };
 
+function formatRupiah(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function parseRupiahInput(input: string) {
+  const digits = input.replace(/\D/g, "");
+  return digits ? Number.parseInt(digits, 10) : 0;
+}
+
 export default function PlacesOfWorshipPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isAidOpen, setIsAidOpen] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<number | null>(null);
+  const [aidForm, setAidForm] = useState({
+    recipientId: 0,
+    aidType: "Sembako",
+    amount: 0,
+    quantity: 1,
+    unit: "paket",
+    notes: "",
+  });
   const [formData, setFormData] = useState({
     name: "",
     type: "mosque" as "mosque" | "church" | "temple" | "vihara" | "other",
@@ -69,6 +91,14 @@ export default function PlacesOfWorshipPage() {
     search: search || undefined,
     type: typeFilter === "all" ? undefined : typeFilter,
   });
+  const { data: placeRecipients } = trpc.recipient.list.useQuery(
+    { placeOfWorshipId: selectedPlace ?? undefined },
+    { enabled: isAidOpen && selectedPlace !== null },
+  );
+  const { data: placeDistributions } = trpc.distribution.list.useQuery(
+    { placeOfWorshipId: selectedPlace ?? undefined },
+    { enabled: isAidOpen && selectedPlace !== null },
+  );
 
   const createMutation = trpc.placeOfWorship.create.useMutation({
     onSuccess: () => {
@@ -91,6 +121,21 @@ export default function PlacesOfWorshipPage() {
     onSuccess: () => {
       utils.placeOfWorship.list.invalidate();
       utils.dashboard.stats.invalidate();
+    },
+  });
+
+  const createAidMutation = trpc.distribution.create.useMutation({
+    onSuccess: () => {
+      utils.distribution.list.invalidate();
+      utils.dashboard.stats.invalidate();
+      setAidForm({
+        recipientId: 0,
+        aidType: "Sembako",
+        amount: 0,
+        quantity: 1,
+        unit: "paket",
+        notes: "",
+      });
     },
   });
 
@@ -159,9 +204,36 @@ export default function PlacesOfWorshipPage() {
   };
 
   const selectedPlaceData = places?.find((p) => p.id === selectedPlace);
+  const selectedPlaceRecipients = useMemo(
+    () => (placeRecipients ?? []).filter((recipient) => recipient.placeOfWorshipId === selectedPlace),
+    [placeRecipients, selectedPlace],
+  );
+  const selectedPlaceDistributions = useMemo(
+    () => (placeDistributions ?? []).filter((distribution) => distribution.placeOfWorshipId === selectedPlace),
+    [placeDistributions, selectedPlace],
+  );
+  const activeRecipients = selectedPlaceRecipients.filter((recipient) => recipient.status === "active");
+  const totalAidAmount = selectedPlaceDistributions.reduce(
+    (sum, distribution) => sum + Number.parseFloat(String(distribution.amount ?? 0)),
+    0,
+  );
 
   const updateFormData = (next: Partial<typeof formData>) => {
     setFormData((current) => ({ ...current, ...next }));
+  };
+
+  const handleAidSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPlace || !aidForm.recipientId) return;
+    createAidMutation.mutate({
+      placeOfWorshipId: selectedPlace,
+      recipientId: aidForm.recipientId,
+      aidType: aidForm.aidType,
+      amount: aidForm.amount,
+      quantity: aidForm.quantity,
+      unit: aidForm.unit,
+      notes: aidForm.notes || undefined,
+    });
   };
 
   return (
@@ -309,12 +381,15 @@ export default function PlacesOfWorshipPage() {
                       <span>{place.contactPhone}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-1 pt-2">
+                  <div className="flex items-center gap-1 pt-2 flex-wrap">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSelectedPlace(place.id); setIsViewOpen(true); }}>
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(place)}>
                       <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="secondary" size="sm" className="h-7 px-2 text-xs rounded-lg" onClick={() => { setSelectedPlace(place.id); setIsAidOpen(true); }}>
+                      Bantuan
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("Hapus rumah ibadah ini?")) deleteMutation.mutate({ id: place.id }); }}>
                       <Trash2 className="h-3.5 w-3.5" />
@@ -326,6 +401,156 @@ export default function PlacesOfWorshipPage() {
           ))}
         </div>
       )}
+
+      {/* Aid Dialog */}
+      <Dialog open={isAidOpen} onOpenChange={setIsAidOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manajemen Bantuan {selectedPlaceData ? `- ${selectedPlaceData.name}` : ""}</DialogTitle>
+          </DialogHeader>
+          {selectedPlaceData ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Card className="rounded-xl border bg-muted/20">
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Total Penerima</p>
+                    <p className="text-2xl font-bold">{selectedPlaceRecipients.length}</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-xl border bg-muted/20">
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Penerima Aktif</p>
+                    <p className="text-2xl font-bold">{activeRecipients.length}</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-xl border bg-muted/20">
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground">Total Bantuan Tersalurkan</p>
+                    <p className="text-2xl font-bold">{formatRupiah(totalAidAmount)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <form onSubmit={handleAidSubmit} className="space-y-4 rounded-2xl border p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-semibold text-sm">Pemberian Bantuan Baru</h3>
+                  <p className="text-xs text-muted-foreground">Pilih penerima aktif yang terdaftar di rumah ibadah ini</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Penerima</Label>
+                    <Select
+                      value={String(aidForm.recipientId)}
+                      onValueChange={(value) => setAidForm((current) => ({ ...current, recipientId: parseInt(value) || 0 }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Pilih penerima aktif" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeRecipients.map((recipient) => (
+                          <SelectItem key={recipient.id} value={String(recipient.id)}>
+                            {recipient.name} - {recipient.nik}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Jenis Bantuan</Label>
+                    <Input
+                      value={aidForm.aidType}
+                      onChange={(e) => setAidForm((current) => ({ ...current, aidType: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Jumlah (Rp)</Label>
+                    <Input
+                      value={formatRupiah(aidForm.amount)}
+                      onChange={(e) => setAidForm((current) => ({ ...current, amount: parseRupiahInput(e.target.value) }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Qty</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={aidForm.quantity}
+                      onChange={(e) => setAidForm((current) => ({ ...current, quantity: parseInt(e.target.value) || 1 }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Satuan</Label>
+                    <Input
+                      value={aidForm.unit}
+                      onChange={(e) => setAidForm((current) => ({ ...current, unit: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Catatan</Label>
+                  <Input
+                    value={aidForm.notes}
+                    onChange={(e) => setAidForm((current) => ({ ...current, notes: e.target.value }))}
+                    className="h-9"
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={createAidMutation.isPending || !aidForm.recipientId}>
+                  {createAidMutation.isPending ? "Menyimpan bantuan..." : "Simpan Bantuan"}
+                </Button>
+              </form>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm">History Pemberian Bantuan</h3>
+                {selectedPlaceDistributions.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-muted-foreground rounded-2xl border">
+                    Belum ada history bantuan di rumah ibadah ini
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/40">
+                          <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Tanggal</th>
+                          <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Penerima</th>
+                          <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Jenis</th>
+                          <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Jumlah</th>
+                          <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Catatan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedPlaceDistributions.map((distribution) => {
+                          const recipientName = selectedPlaceRecipients.find((recipient) => recipient.id === distribution.recipientId)?.name ?? "-";
+                          return (
+                            <tr key={distribution.id} className="border-b last:border-0">
+                              <td className="py-3 px-3 text-xs text-muted-foreground whitespace-nowrap">
+                                {new Date(distribution.distributionDate).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </td>
+                              <td className="py-3 px-3 text-xs">{recipientName}</td>
+                              <td className="py-3 px-3 text-xs">{distribution.aidType}</td>
+                              <td className="py-3 px-3 text-xs">{formatRupiah(Number.parseFloat(String(distribution.amount ?? 0)))}</td>
+                              <td className="py-3 px-3 text-xs text-muted-foreground">{distribution.notes ?? "-"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>

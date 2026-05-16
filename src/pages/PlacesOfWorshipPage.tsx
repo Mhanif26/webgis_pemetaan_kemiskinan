@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
+import { LocationPicker } from "@/components/LocationPicker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -159,6 +160,10 @@ export default function PlacesOfWorshipPage() {
 
   const selectedPlaceData = places?.find((p) => p.id === selectedPlace);
 
+  const updateFormData = (next: Partial<typeof formData>) => {
+    setFormData((current) => ({ ...current, ...next }));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -203,6 +208,12 @@ export default function PlacesOfWorshipPage() {
                 <Label className="text-xs">Alamat</Label>
                 <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
               </div>
+              <LocationPicker
+                value={formData}
+                onChange={updateFormData}
+                label="Pilih lokasi rumah ibadah"
+                hint="Klik peta atau geser pin. Koordinat dan alamat akan terisi otomatis."
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Latitude</Label>
@@ -348,6 +359,12 @@ export default function PlacesOfWorshipPage() {
               <Label className="text-xs">Alamat</Label>
               <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="h-9" />
             </div>
+            <LocationPicker
+              value={formData}
+              onChange={updateFormData}
+              label="Pilih lokasi rumah ibadah"
+              hint="Klik peta atau geser pin. Koordinat dan alamat akan terisi otomatis."
+            />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label className="text-xs">Latitude</Label><Input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} className="h-9" /></div>
               <div className="space-y-1.5"><Label className="text-xs">Longitude</Label><Input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} className="h-9" /></div>

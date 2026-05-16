@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
+import { LocationPicker } from "@/components/LocationPicker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,6 +186,10 @@ export default function RecipientsPage() {
 
   const selectedRec = recipients?.find((r) => r.id === selectedRecipient);
 
+  const updateFormData = (next: Partial<typeof formData>) => {
+    setFormData((current) => ({ ...current, ...next }));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -234,26 +239,32 @@ export default function RecipientsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Alamat</Label>
-                <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
+                <Input value={formData.address} onChange={(e) => updateFormData({ address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
               </div>
+              <LocationPicker
+                value={formData}
+                onChange={updateFormData}
+                label="Pilih titik lokasi dari peta"
+                hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Telepon</Label>
-                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
+                  <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Jumlah Keluarga</Label>
-                  <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => setFormData({ ...formData, familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
+                  <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Pendapatan/Bulan (Rp)</Label>
-                  <Input type="number" min={0} value={formData.incomePerMonth} onChange={(e) => setFormData({ ...formData, incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
+                  <Input type="number" min={0} value={formData.incomePerMonth} onChange={(e) => updateFormData({ incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Rumah Ibadah</Label>
-                  <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => setFormData({ ...formData, placeOfWorshipId: parseInt(v) })}>
+                  <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => updateFormData({ placeOfWorshipId: parseInt(v) })}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(places ?? []).map((p) => (
@@ -266,16 +277,16 @@ export default function RecipientsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Latitude</Label>
-                  <Input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} placeholder="-6.xxxx" className="h-9" />
+                  <Input value={formData.latitude} onChange={(e) => updateFormData({ latitude: e.target.value })} placeholder="-6.xxxx" className="h-9" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Longitude</Label>
-                  <Input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} placeholder="106.xxxx" className="h-9" />
+                  <Input value={formData.longitude} onChange={(e) => updateFormData({ longitude: e.target.value })} placeholder="106.xxxx" className="h-9" />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Catatan</Label>
-                <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Catatan tambahan" className="h-9" />
+                <Input value={formData.notes} onChange={(e) => updateFormData({ notes: e.target.value })} placeholder="Catatan tambahan" className="h-9" />
               </div>
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                 {createMutation.isPending ? "Menyimpan..." : "Simpan"}
@@ -430,26 +441,32 @@ export default function RecipientsPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Alamat</Label>
-              <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="h-9" />
+              <Input value={formData.address} onChange={(e) => updateFormData({ address: e.target.value })} className="h-9" />
             </div>
+            <LocationPicker
+              value={formData}
+              onChange={updateFormData}
+              label="Pilih titik lokasi dari peta"
+              hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
+            />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Telepon</Label>
-                <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="h-9" />
+                <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Jumlah Keluarga</Label>
-                <Input type="number" value={formData.familyMembers} onChange={(e) => setFormData({ ...formData, familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
+                <Input type="number" value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Pendapatan/Bulan</Label>
-                <Input type="number" value={formData.incomePerMonth} onChange={(e) => setFormData({ ...formData, incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
+                <Input type="number" value={formData.incomePerMonth} onChange={(e) => updateFormData({ incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Rumah Ibadah</Label>
-                <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => setFormData({ ...formData, placeOfWorshipId: parseInt(v) })}>
+                <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => updateFormData({ placeOfWorshipId: parseInt(v) })}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(places ?? []).map((p) => (
@@ -462,11 +479,11 @@ export default function RecipientsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Latitude</Label>
-                <Input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} className="h-9" />
+                <Input value={formData.latitude} onChange={(e) => updateFormData({ latitude: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Longitude</Label>
-                <Input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} className="h-9" />
+                <Input value={formData.longitude} onChange={(e) => updateFormData({ longitude: e.target.value })} className="h-9" />
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={updateMutation.isPending}>

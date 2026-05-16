@@ -177,8 +177,8 @@ export default function PlacesOfWorshipPage() {
             <DialogHeader><DialogTitle>Tambah Rumah Ibadah</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">Nama</Label>
-                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nama rumah ibadah" className="h-9" />
+                <Label className="text-xs">Nama Tempat Ibadah</Label>
+                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Tulis nama rumah ibadah" className="h-9" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -322,8 +322,8 @@ export default function PlacesOfWorshipPage() {
           <DialogHeader><DialogTitle>Edit Rumah Ibadah</DialogTitle></DialogHeader>
           <form onSubmit={handleUpdate} className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs">Nama</Label>
-              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-9" />
+              <Label className="text-xs">Nama Tempat Ibadah</Label>
+              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Tulis nama rumah ibadah" className="h-9" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

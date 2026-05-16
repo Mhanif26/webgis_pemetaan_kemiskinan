@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { LocationPicker } from "@/components/LocationPicker";
+import { DocumentUploadField } from "@/components/DocumentUploadField";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,9 @@ export default function RecipientsPage() {
     notes: "",
     latitude: "",
     longitude: "",
+    ktpDocument: "",
+    kkDocument: "",
+    sktmDocument: "",
   });
 
   const utils = trpc.useUtils();
@@ -162,6 +166,9 @@ export default function RecipientsPage() {
       notes: "",
       latitude: "",
       longitude: "",
+      ktpDocument: "",
+      kkDocument: "",
+      sktmDocument: "",
     });
     setSelectedRecipient(null);
   };
@@ -170,6 +177,7 @@ export default function RecipientsPage() {
     e.preventDefault();
     const resolvedPlaceOfWorshipId = nearestPlaceForForm?.id ?? formData.placeOfWorshipId;
     if (!formData.nik || !formData.name || !resolvedPlaceOfWorshipId) return;
+    if (!formData.ktpDocument || !formData.kkDocument) return;
     createMutation.mutate({
       nik: formData.nik,
       name: formData.name,
@@ -183,6 +191,9 @@ export default function RecipientsPage() {
       notes: formData.notes || undefined,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
+      ktpDocument: formData.ktpDocument,
+      kkDocument: formData.kkDocument,
+      sktmDocument: formData.sktmDocument || undefined,
     });
   };
 
@@ -200,6 +211,9 @@ export default function RecipientsPage() {
       notes: recipient.notes ?? "",
       latitude: recipient.latitude?.toString() ?? "",
       longitude: recipient.longitude?.toString() ?? "",
+      ktpDocument: recipient.ktpDocument ?? "",
+      kkDocument: recipient.kkDocument ?? "",
+      sktmDocument: recipient.sktmDocument ?? "",
     });
     setSelectedRecipient(recipient.id);
     setIsEditOpen(true);
@@ -223,6 +237,9 @@ export default function RecipientsPage() {
       notes: formData.notes || undefined,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
+      ktpDocument: formData.ktpDocument || undefined,
+      kkDocument: formData.kkDocument || undefined,
+      sktmDocument: formData.sktmDocument || undefined,
     });
   };
 
@@ -339,6 +356,30 @@ export default function RecipientsPage() {
                 label="Pilih titik lokasi dari peta"
                 hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
               />
+              <div className="grid grid-cols-1 gap-3">
+                <DocumentUploadField
+                  label="Foto KTP (Kartu Tanda Penduduk)"
+                  value={formData.ktpDocument}
+                  onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
+                  required
+                  helperText="JPG, PNG, PDF - Maks 5MB"
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <DocumentUploadField
+                    label="Foto Kartu Keluarga (KK)"
+                    value={formData.kkDocument}
+                    onChange={(value) => updateFormData({ kkDocument: value ?? "" })}
+                    required
+                    helperText="JPG, PNG, PDF"
+                  />
+                  <DocumentUploadField
+                    label="Surat Keterangan Tidak Mampu (SKTM)"
+                    value={formData.sktmDocument}
+                    onChange={(value) => updateFormData({ sktmDocument: value ?? "" })}
+                    helperText="JPG, PNG, PDF (Opsional)"
+                  />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Telepon</Label>
@@ -371,7 +412,11 @@ export default function RecipientsPage() {
                 <Label className="text-xs">Catatan</Label>
                 <Input value={formData.notes} onChange={(e) => updateFormData({ notes: e.target.value })} placeholder="Catatan tambahan" className="h-9" />
               </div>
-              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={createMutation.isPending || !formData.ktpDocument || !formData.kkDocument}
+              >
                 {createMutation.isPending ? "Menyimpan..." : "Simpan"}
               </Button>
             </form>
@@ -539,6 +584,30 @@ export default function RecipientsPage() {
               label="Pilih titik lokasi dari peta"
               hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
             />
+            <div className="grid grid-cols-1 gap-3">
+              <DocumentUploadField
+                label="Foto KTP (Kartu Tanda Penduduk)"
+                value={formData.ktpDocument}
+                onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
+                required
+                helperText="JPG, PNG, PDF - Maks 5MB"
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <DocumentUploadField
+                  label="Foto Kartu Keluarga (KK)"
+                  value={formData.kkDocument}
+                  onChange={(value) => updateFormData({ kkDocument: value ?? "" })}
+                  required
+                  helperText="JPG, PNG, PDF"
+                />
+                <DocumentUploadField
+                  label="Surat Keterangan Tidak Mampu (SKTM)"
+                  value={formData.sktmDocument}
+                  onChange={(value) => updateFormData({ sktmDocument: value ?? "" })}
+                  helperText="JPG, PNG, PDF (Opsional)"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Telepon</Label>
@@ -603,6 +672,16 @@ export default function RecipientsPage() {
               )}
               {selectedRec.notes && (
                 <div className="text-xs bg-muted p-2 rounded-lg"><span className="text-muted-foreground">Catatan:</span> {selectedRec.notes}</div>
+              )}
+              {(selectedRec.ktpDocument || selectedRec.kkDocument || selectedRec.sktmDocument) && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium">Dokumen Terunggah</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <DocumentUploadField label="KTP" value={selectedRec.ktpDocument} />
+                    <DocumentUploadField label="KK" value={selectedRec.kkDocument} />
+                    <DocumentUploadField label="SKTM" value={selectedRec.sktmDocument} />
+                  </div>
+                </div>
               )}
             </div>
           )}

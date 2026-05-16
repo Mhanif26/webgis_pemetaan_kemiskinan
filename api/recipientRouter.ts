@@ -60,6 +60,9 @@ export const recipientRouter = createRouter({
         placeOfWorshipId: z.number().min(1),
         registeredBy: z.number().optional(),
         notes: z.string().optional(),
+        ktpDocument: z.string().min(1),
+        kkDocument: z.string().min(1),
+        sktmDocument: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -73,6 +76,9 @@ export const recipientRouter = createRouter({
         phone: input.phone ?? null,
         registeredBy: input.registeredBy ?? null,
         notes: input.notes ?? null,
+        ktpDocument: input.ktpDocument,
+        kkDocument: input.kkDocument,
+        sktmDocument: input.sktmDocument ?? null,
         status: "pending",
       });
 
@@ -105,6 +111,9 @@ export const recipientRouter = createRouter({
         incomePerMonth: z.number().min(0).optional(),
         placeOfWorshipId: z.number().optional(),
         notes: z.string().optional(),
+        ktpDocument: z.string().optional(),
+        kkDocument: z.string().optional(),
+        sktmDocument: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

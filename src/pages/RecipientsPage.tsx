@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { LocationPicker } from "@/components/LocationPicker";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +44,38 @@ const STATUS_OPTIONS = [
   { value: "suspended", label: "Ditangguhkan" },
 ];
 
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function formatDistance(distanceKm: number) {
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m`;
+  }
+  return `${distanceKm.toFixed(2)} km`;
+}
+
+function formatRupiah(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function parseRupiahInput(input: string) {
+  const digits = input.replace(/\D/g, "");
+  return digits ? Number.parseInt(digits, 10) : 0;
+}
+
 export default function RecipientsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -60,7 +92,7 @@ export default function RecipientsPage() {
     phone: "",
     familyMembers: 1,
     incomePerMonth: 0,
-    placeOfWorshipId: 1,
+    placeOfWorshipId: 0,
     notes: "",
     latitude: "",
     longitude: "",
@@ -73,6 +105,24 @@ export default function RecipientsPage() {
   });
 
   const { data: places } = trpc.placeOfWorship.list.useQuery({});
+
+  const placesWithCoordinates = useMemo(() => {
+    return (places ?? [])
+      .map((place) => {
+        const latitude = Number.parseFloat(String(place.latitude));
+        const longitude = Number.parseFloat(String(place.longitude));
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return null;
+        }
+        return {
+          id: place.id,
+          name: place.name,
+          latitude,
+          longitude,
+        };
+      })
+      .filter((place): place is NonNullable<typeof place> => place !== null);
+  }, [places]);
 
   const createMutation = trpc.recipient.create.useMutation({
     onSuccess: () => {
@@ -108,7 +158,7 @@ export default function RecipientsPage() {
       phone: "",
       familyMembers: 1,
       incomePerMonth: 0,
-      placeOfWorshipId: 1,
+      placeOfWorshipId: 0,
       notes: "",
       latitude: "",
       longitude: "",
@@ -118,7 +168,8 @@ export default function RecipientsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nik || !formData.name) return;
+    const resolvedPlaceOfWorshipId = nearestPlaceForForm?.id ?? formData.placeOfWorshipId;
+    if (!formData.nik || !formData.name || !resolvedPlaceOfWorshipId) return;
     createMutation.mutate({
       nik: formData.nik,
       name: formData.name,
@@ -128,7 +179,7 @@ export default function RecipientsPage() {
       phone: formData.phone || undefined,
       familyMembers: formData.familyMembers,
       incomePerMonth: formData.incomePerMonth,
-      placeOfWorshipId: formData.placeOfWorshipId,
+      placeOfWorshipId: resolvedPlaceOfWorshipId,
       notes: formData.notes || undefined,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
@@ -156,6 +207,7 @@ export default function RecipientsPage() {
 
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault();
+    const resolvedPlaceOfWorshipId = nearestPlaceForForm?.id ?? formData.placeOfWorshipId;
     if (!selectedRecipient) return;
     updateMutation.mutate({
       id: selectedRecipient,
@@ -167,7 +219,7 @@ export default function RecipientsPage() {
       phone: formData.phone || undefined,
       familyMembers: formData.familyMembers,
       incomePerMonth: formData.incomePerMonth,
-      placeOfWorshipId: formData.placeOfWorshipId,
+      placeOfWorshipId: resolvedPlaceOfWorshipId,
       notes: formData.notes || undefined,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
@@ -188,6 +240,46 @@ export default function RecipientsPage() {
 
   const updateFormData = (next: Partial<typeof formData>) => {
     setFormData((current) => ({ ...current, ...next }));
+  };
+
+  const nearestPlaceForForm = useMemo(() => {
+    const latitude = Number.parseFloat(formData.latitude);
+    const longitude = Number.parseFloat(formData.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+
+    let nearest: { id: number; name: string; distanceKm: number } | null = null;
+    for (const place of placesWithCoordinates) {
+      const distanceKm = haversineDistanceKm(latitude, longitude, place.latitude, place.longitude);
+      if (!nearest || distanceKm < nearest.distanceKm) {
+        nearest = { id: place.id, name: place.name, distanceKm };
+      }
+    }
+    return nearest;
+  }, [formData.latitude, formData.longitude, placesWithCoordinates]);
+
+  useEffect(() => {
+    if (!nearestPlaceForForm) return;
+    setFormData((current) =>
+      current.placeOfWorshipId === nearestPlaceForForm.id
+        ? current
+        : { ...current, placeOfWorshipId: nearestPlaceForForm.id },
+    );
+  }, [nearestPlaceForForm]);
+
+  const getRecipientDistanceToPlace = (recipient: NonNullable<typeof recipients>[number]) => {
+    const latitude = Number.parseFloat(String(recipient.latitude));
+    const longitude = Number.parseFloat(String(recipient.longitude));
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+
+    const place = placesWithCoordinates.find((item) => item.id === recipient.placeOfWorshipId);
+    if (!place) {
+      return null;
+    }
+    return haversineDistanceKm(latitude, longitude, place.latitude, place.longitude);
   };
 
   return (
@@ -260,29 +352,20 @@ export default function RecipientsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Pendapatan/Bulan (Rp)</Label>
-                  <Input type="number" min={0} value={formData.incomePerMonth} onChange={(e) => updateFormData({ incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Rumah Ibadah</Label>
-                  <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => updateFormData({ placeOfWorshipId: parseInt(v) })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(places ?? []).map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    value={formatRupiah(formData.incomePerMonth)}
+                    onChange={(e) => updateFormData({ incomePerMonth: parseRupiahInput(e.target.value) })}
+                    className="h-9"
+                  />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Latitude</Label>
-                  <Input value={formData.latitude} onChange={(e) => updateFormData({ latitude: e.target.value })} placeholder="-6.xxxx" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Longitude</Label>
-                  <Input value={formData.longitude} onChange={(e) => updateFormData({ longitude: e.target.value })} placeholder="106.xxxx" className="h-9" />
-                </div>
+              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Rumah ibadah terdekat (otomatis)</p>
+                <p>
+                  {nearestPlaceForForm
+                    ? `${nearestPlaceForForm.name} • ${formatDistance(nearestPlaceForForm.distanceKm)}`
+                    : "Pilih titik pada peta untuk menentukan rumah ibadah terdekat."}
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Catatan</Label>
@@ -349,6 +432,7 @@ export default function RecipientsPage() {
                     <TableHead className="text-xs">Nama</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Rumah Ibadah</TableHead>
+                    <TableHead className="text-xs">Jarak</TableHead>
                     <TableHead className="text-xs">Keluarga</TableHead>
                     <TableHead className="text-xs">Pendapatan</TableHead>
                     <TableHead className="text-xs">Aksi</TableHead>
@@ -363,9 +447,15 @@ export default function RecipientsPage() {
                       <TableCell className="text-xs">
                         {places?.find((p) => p.id === r.placeOfWorshipId)?.name ?? "-"}
                       </TableCell>
+                      <TableCell className="text-xs">
+                        {(() => {
+                          const distanceKm = getRecipientDistanceToPlace(r);
+                          return distanceKm === null ? "-" : formatDistance(distanceKm);
+                        })()}
+                      </TableCell>
                       <TableCell className="text-xs">{r.familyMembers}</TableCell>
                       <TableCell className="text-xs">
-                        Rp {(r.incomePerMonth ?? 0).toLocaleString("id-ID")}
+                        {formatRupiah(r.incomePerMonth ?? 0)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -459,32 +549,23 @@ export default function RecipientsPage() {
                 <Input type="number" value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Pendapatan/Bulan</Label>
-                <Input type="number" value={formData.incomePerMonth} onChange={(e) => updateFormData({ incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Rumah Ibadah</Label>
-                <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => updateFormData({ placeOfWorshipId: parseInt(v) })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(places ?? []).map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={formatRupiah(formData.incomePerMonth)}
+                  onChange={(e) => updateFormData({ incomePerMonth: parseRupiahInput(e.target.value) })}
+                  className="h-9"
+                />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Latitude</Label>
-                <Input value={formData.latitude} onChange={(e) => updateFormData({ latitude: e.target.value })} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Longitude</Label>
-                <Input value={formData.longitude} onChange={(e) => updateFormData({ longitude: e.target.value })} className="h-9" />
-              </div>
+            <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Rumah ibadah terdekat (otomatis)</p>
+              <p>
+                {nearestPlaceForForm
+                  ? `${nearestPlaceForForm.name} • ${formatDistance(nearestPlaceForForm.distanceKm)}`
+                  : "Pilih titik pada peta untuk menentukan rumah ibadah terdekat."}
+              </p>
             </div>
             <Button type="submit" className="w-full" disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Memperbarui..." : "Perbarui"}

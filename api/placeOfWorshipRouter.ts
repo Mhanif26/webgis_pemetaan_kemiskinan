@@ -7,6 +7,15 @@ import {
   updatePlace,
   deletePlace,
 } from "./queries/placesOfWorship";
+import { createActivityLog } from "./queries/activityLogs";
+
+async function logActivitySafe(payload: Parameters<typeof createActivityLog>[0]) {
+  try {
+    await createActivityLog(payload);
+  } catch (error) {
+    console.warn("[activity] failed to write place activity", error);
+  }
+}
 
 export const placeOfWorshipRouter = createRouter({
   list: publicQuery
@@ -43,12 +52,24 @@ export const placeOfWorshipRouter = createRouter({
       })
     )
     .mutation(async ({ input }) => {
-      return createPlace({
+      const created = await createPlace({
         ...input,
         latitude: input.latitude.toString(),
         longitude: input.longitude.toString(),
         managerId: input.managerId ?? null,
       });
+
+      if (created) {
+        await logActivitySafe({
+          userId: input.managerId ?? null,
+          action: "CREATE",
+          entityType: "place_of_worship",
+          entityId: created.id,
+          details: `Menambahkan ${created.name}`,
+        });
+      }
+
+      return created;
     }),
 
   update: publicQuery
@@ -70,17 +91,42 @@ export const placeOfWorshipRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
+      const beforeUpdate = await findPlaceById(id);
       const updateData: Record<string, unknown> = { ...data };
       if (data.latitude !== undefined) updateData.latitude = data.latitude.toString();
       if (data.longitude !== undefined) updateData.longitude = data.longitude.toString();
       if (data.managerId === undefined) delete updateData.managerId;
-      return updatePlace(id, updateData);
+      const updated = await updatePlace(id, updateData);
+
+      if (updated) {
+        await logActivitySafe({
+          userId: data.managerId ?? beforeUpdate?.managerId ?? null,
+          action: "UPDATE",
+          entityType: "place_of_worship",
+          entityId: updated.id,
+          details: `Memperbarui rumah ibadah ${updated.name}`,
+        });
+      }
+
+      return updated;
     }),
 
   delete: publicQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
+      const target = await findPlaceById(input.id);
       await deletePlace(input.id);
+
+      if (target) {
+        await logActivitySafe({
+          userId: target.managerId ?? null,
+          action: "DELETE",
+          entityType: "place_of_worship",
+          entityId: target.id,
+          details: `Menghapus rumah ibadah ${target.name}`,
+        });
+      }
+
       return { success: true };
     }),
 });

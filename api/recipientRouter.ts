@@ -9,6 +9,15 @@ import {
   verifyRecipient,
   deleteRecipient,
 } from "./queries/recipients";
+import { createActivityLog } from "./queries/activityLogs";
+
+async function logActivitySafe(payload: Parameters<typeof createActivityLog>[0]) {
+  try {
+    await createActivityLog(payload);
+  } catch (error) {
+    console.warn("[activity] failed to write recipient activity", error);
+  }
+}
 
 export const recipientRouter = createRouter({
   list: publicQuery
@@ -54,7 +63,7 @@ export const recipientRouter = createRouter({
       })
     )
     .mutation(async ({ input }) => {
-      return createRecipient({
+      const created = await createRecipient({
         ...input,
         latitude: input.latitude?.toString() ?? null,
         longitude: input.longitude?.toString() ?? null,
@@ -66,6 +75,18 @@ export const recipientRouter = createRouter({
         notes: input.notes ?? null,
         status: "pending",
       });
+
+      if (created) {
+        await logActivitySafe({
+          userId: input.registeredBy ?? null,
+          action: "CREATE",
+          entityType: "recipient",
+          entityId: created.id,
+          details: `Mendaftarkan ${created.name}`,
+        });
+      }
+
+      return created;
     }),
 
   update: publicQuery
@@ -88,10 +109,23 @@ export const recipientRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
+      const beforeUpdate = await findRecipientById(id);
       const updateData: Record<string, unknown> = { ...data };
       if (data.latitude !== undefined) updateData.latitude = data.latitude.toString();
       if (data.longitude !== undefined) updateData.longitude = data.longitude.toString();
-      return updateRecipient(id, updateData);
+      const updated = await updateRecipient(id, updateData);
+
+      if (updated) {
+        await logActivitySafe({
+          userId: beforeUpdate?.registeredBy ?? null,
+          action: "UPDATE",
+          entityType: "recipient",
+          entityId: updated.id,
+          details: `Memperbarui data ${updated.name}`,
+        });
+      }
+
+      return updated;
     }),
 
   verify: publicQuery
@@ -104,13 +138,36 @@ export const recipientRouter = createRouter({
       })
     )
     .mutation(async ({ input }) => {
-      return verifyRecipient(input.id, input.status, input.verifiedBy, input.rejectionReason);
+      const verified = await verifyRecipient(input.id, input.status, input.verifiedBy, input.rejectionReason);
+      if (verified) {
+        const statusText = input.status === "active" ? "Diterima" : "Ditolak";
+        await logActivitySafe({
+          userId: input.verifiedBy,
+          action: "VERIFY",
+          entityType: "recipient",
+          entityId: verified.id,
+          details: `Memverifikasi ${verified.name} - ${statusText}`,
+        });
+      }
+      return verified;
     }),
 
   delete: publicQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
+      const target = await findRecipientById(input.id);
       await deleteRecipient(input.id);
+
+      if (target) {
+        await logActivitySafe({
+          userId: target.registeredBy ?? null,
+          action: "DELETE",
+          entityType: "recipient",
+          entityId: target.id,
+          details: `Menghapus penerima ${target.name}`,
+        });
+      }
+
       return { success: true };
     }),
 });

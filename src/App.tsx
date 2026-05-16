@@ -11,7 +11,13 @@ import VerificationPage from "./pages/VerificationPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
 
-function ProtectedRoute({ children, adminOnly }: { children: React.ReactNode; adminOnly?: boolean }) {
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+}) {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -26,7 +32,7 @@ function ProtectedRoute({ children, adminOnly }: { children: React.ReactNode; ad
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && user.role !== "admin") {
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
 
@@ -72,7 +78,7 @@ export default function App() {
       <Route
         path="/verification"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["admin", "officer"]}>
             <VerificationPage />
           </ProtectedRoute>
         }
@@ -80,7 +86,7 @@ export default function App() {
       <Route
         path="/users"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={["admin"]}>
             <UsersPage />
           </ProtectedRoute>
         }
@@ -88,7 +94,7 @@ export default function App() {
       <Route
         path="/settings"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["admin"]}>
             <SettingsPage />
           </ProtectedRoute>
         }

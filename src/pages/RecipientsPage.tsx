@@ -78,6 +78,11 @@ function parseRupiahInput(input: string) {
 }
 
 export default function RecipientsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager";
+  const canModify = isAdmin || isManager;
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -308,120 +313,122 @@ export default function RecipientsPage() {
             Kelola data warga penerima bantuan sosial
           </p>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="rounded-xl" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Tambah Penerima
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Tambah Penerima Baru</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">NIK</Label>
-                  <Input value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} placeholder="16 digit" maxLength={16} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Nama Lengkap</Label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nama" className="h-9" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tanggal Lahir</Label>
-                  <Input type="date" value={formData.birthDate} onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Jenis Kelamin</Label>
-                  <Select value={formData.gender} onValueChange={(v: "male" | "female") => setFormData({ ...formData, gender: v })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="male">Laki-laki</SelectItem>
-                      <SelectItem value="female">Perempuan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Alamat</Label>
-                <Input value={formData.address} onChange={(e) => updateFormData({ address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
-              </div>
-              <LocationPicker
-                value={formData}
-                onChange={updateFormData}
-                label="Pilih titik lokasi dari peta"
-                hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
-              />
-              <div className="grid grid-cols-1 gap-3">
-                <DocumentUploadField
-                  label="Foto KTP (Kartu Tanda Penduduk)"
-                  value={formData.ktpDocument}
-                  onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
-                  required
-                  helperText="JPG, PNG, PDF - Maks 5MB"
-                />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <DocumentUploadField
-                    label="Foto Kartu Keluarga (KK)"
-                    value={formData.kkDocument}
-                    onChange={(value) => updateFormData({ kkDocument: value ?? "" })}
-                    required
-                    helperText="JPG, PNG, PDF"
-                  />
-                  <DocumentUploadField
-                    label="Surat Keterangan Tidak Mampu (SKTM)"
-                    value={formData.sktmDocument}
-                    onChange={(value) => updateFormData({ sktmDocument: value ?? "" })}
-                    helperText="JPG, PNG, PDF (Opsional)"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Telepon</Label>
-                  <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Jumlah Keluarga</Label>
-                  <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Pendapatan/Bulan (Rp)</Label>
-                  <Input
-                    value={formatRupiah(formData.incomePerMonth)}
-                    onChange={(e) => updateFormData({ incomePerMonth: parseRupiahInput(e.target.value) })}
-                    className="h-9"
-                  />
-                </div>
-              </div>
-              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">Rumah ibadah terdekat (otomatis)</p>
-                <p>
-                  {nearestPlaceForForm
-                    ? `${nearestPlaceForForm.name} • ${formatDistance(nearestPlaceForForm.distanceKm)}`
-                    : "Pilih titik pada peta untuk menentukan rumah ibadah terdekat."}
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Catatan</Label>
-                <Input value={formData.notes} onChange={(e) => updateFormData({ notes: e.target.value })} placeholder="Catatan tambahan" className="h-9" />
-              </div>
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={createMutation.isPending || !formData.ktpDocument || !formData.kkDocument}
-              >
-                {createMutation.isPending ? "Menyimpan..." : "Simpan"}
+        {canModify && (
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="rounded-xl" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Tambah Penerima
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Tambah Penerima Baru</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">NIK</Label>
+                    <Input value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} placeholder="16 digit" maxLength={16} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Nama Lengkap</Label>
+                    <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nama" className="h-9" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tanggal Lahir</Label>
+                    <Input type="date" value={formData.birthDate} onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Jenis Kelamin</Label>
+                    <Select value={formData.gender} onValueChange={(v: "male" | "female") => setFormData({ ...formData, gender: v })}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Laki-laki</SelectItem>
+                        <SelectItem value="female">Perempuan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Alamat</Label>
+                  <Input value={formData.address} onChange={(e) => updateFormData({ address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
+                </div>
+                <LocationPicker
+                  value={formData}
+                  onChange={updateFormData}
+                  label="Pilih titik lokasi dari peta"
+                  hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
+                />
+                <div className="grid grid-cols-1 gap-3">
+                  <DocumentUploadField
+                    label="Foto KTP (Kartu Tanda Penduduk)"
+                    value={formData.ktpDocument}
+                    onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
+                    required
+                    helperText="JPG, PNG, PDF - Maks 5MB"
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <DocumentUploadField
+                      label="Foto Kartu Keluarga (KK)"
+                      value={formData.kkDocument}
+                      onChange={(value) => updateFormData({ kkDocument: value ?? "" })}
+                      required
+                      helperText="JPG, PNG, PDF"
+                    />
+                    <DocumentUploadField
+                      label="Surat Keterangan Tidak Mampu (SKTM)"
+                      value={formData.sktmDocument}
+                      onChange={(value) => updateFormData({ sktmDocument: value ?? "" })}
+                      helperText="JPG, PNG, PDF (Opsional)"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Telepon</Label>
+                    <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Jumlah Keluarga</Label>
+                    <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Pendapatan/Bulan (Rp)</Label>
+                    <Input
+                      value={formatRupiah(formData.incomePerMonth)}
+                      onChange={(e) => updateFormData({ incomePerMonth: parseRupiahInput(e.target.value) })}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">Rumah ibadah terdekat (otomatis)</p>
+                  <p>
+                    {nearestPlaceForForm
+                      ? `${nearestPlaceForForm.name} • ${formatDistance(nearestPlaceForForm.distanceKm)}`
+                      : "Pilih titik pada peta untuk menentukan rumah ibadah terdekat."}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Catatan</Label>
+                  <Input value={formData.notes} onChange={(e) => updateFormData({ notes: e.target.value })} placeholder="Catatan tambahan" className="h-9" />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={createMutation.isPending || !formData.ktpDocument || !formData.kkDocument}
+                >
+                  {createMutation.isPending ? "Menyimpan..." : "Simpan"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Filters */}
@@ -512,26 +519,30 @@ export default function RecipientsPage() {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleEdit(r)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => {
-                              if (confirm("Hapus penerima ini?")) {
-                                deleteMutation.mutate({ id: r.id });
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {canModify && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleEdit(r)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive"
+                                onClick={() => {
+                                  if (confirm("Hapus penerima ini?")) {
+                                    deleteMutation.mutate({ id: r.id });
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

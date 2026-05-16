@@ -59,6 +59,12 @@ function parseRupiahInput(input: string) {
 }
 
 export default function PlacesOfWorshipPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager";
+  const canModify = isAdmin; // Only Admin can modify Places of Worship
+  const canDistribute = isAdmin || isManager; // Admin and Manager can distribute aid
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -243,79 +249,81 @@ export default function PlacesOfWorshipPage() {
           <h2 className="text-2xl font-bold tracking-tight">Rumah Ibadah</h2>
           <p className="text-muted-foreground mt-1 text-sm">Kelola data rumah ibadah dan cakupan wilayahnya</p>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="rounded-xl" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Tambah Rumah Ibadah
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Tambah Rumah Ibadah</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nama Tempat Ibadah</Label>
-                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Tulis nama rumah ibadah" className="h-9" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tipe</Label>
-                  <Select value={formData.type} onValueChange={(v: typeof formData.type) => setFormData({ ...formData, type: v })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mosque">Masjid</SelectItem>
-                      <SelectItem value="church">Gereja</SelectItem>
-                      <SelectItem value="temple">Pura</SelectItem>
-                      <SelectItem value="vihara">Vihara</SelectItem>
-                      <SelectItem value="other">Lainnya</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Kapasitas</Label>
-                  <Input type="number" min={1} value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 1 })} className="h-9" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Alamat</Label>
-                <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
-              </div>
-              <LocationPicker
-                value={formData}
-                onChange={updateFormData}
-                label="Pilih lokasi rumah ibadah"
-                hint="Klik peta atau geser pin. Koordinat dan alamat akan terisi otomatis."
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Latitude</Label>
-                  <Input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} placeholder="-6.xxxx" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Longitude</Label>
-                  <Input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} placeholder="106.xxxx" className="h-9" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Radius (meter)</Label>
-                  <Input type="number" min={100} max={10000} value={formData.radius} onChange={(e) => setFormData({ ...formData, radius: parseInt(e.target.value) || 1000 })} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">No. Kontak</Label>
-                  <Input value={formData.contactPhone} onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nama Kontak</Label>
-                <Input value={formData.contactName} onChange={(e) => setFormData({ ...formData, contactName: e.target.value })} placeholder="Nama penanggung jawab" className="h-9" />
-              </div>
-              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Menyimpan..." : "Simpan"}
+        {canModify && (
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="rounded-xl" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Tambah Rumah Ibadah
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Tambah Rumah Ibadah</DialogTitle></DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Nama Tempat Ibadah</Label>
+                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Tulis nama rumah ibadah" className="h-9" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tipe</Label>
+                    <Select value={formData.type} onValueChange={(v: typeof formData.type) => setFormData({ ...formData, type: v })}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mosque">Masjid</SelectItem>
+                        <SelectItem value="church">Gereja</SelectItem>
+                        <SelectItem value="temple">Pura</SelectItem>
+                        <SelectItem value="vihara">Vihara</SelectItem>
+                        <SelectItem value="other">Lainnya</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Kapasitas</Label>
+                    <Input type="number" min={1} value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 1 })} className="h-9" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Alamat</Label>
+                  <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
+                </div>
+                <LocationPicker
+                  value={formData}
+                  onChange={updateFormData}
+                  label="Pilih lokasi rumah ibadah"
+                  hint="Klik peta atau geser pin. Koordinat dan alamat akan terisi otomatis."
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Latitude</Label>
+                    <Input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} placeholder="-6.xxxx" className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Longitude</Label>
+                    <Input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} placeholder="106.xxxx" className="h-9" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Radius (meter)</Label>
+                    <Input type="number" min={100} max={10000} value={formData.radius} onChange={(e) => setFormData({ ...formData, radius: parseInt(e.target.value) || 1000 })} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">No. Kontak</Label>
+                    <Input value={formData.contactPhone} onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Nama Kontak</Label>
+                  <Input value={formData.contactName} onChange={(e) => setFormData({ ...formData, contactName: e.target.value })} placeholder="Nama penanggung jawab" className="h-9" />
+                </div>
+                <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Menyimpan..." : "Simpan"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Filters */}
@@ -385,15 +393,21 @@ export default function PlacesOfWorshipPage() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSelectedPlace(place.id); setIsViewOpen(true); }}>
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(place)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="secondary" size="sm" className="h-7 px-2 text-xs rounded-lg" onClick={() => { setSelectedPlace(place.id); setIsAidOpen(true); }}>
-                      Bantuan
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("Hapus rumah ibadah ini?")) deleteMutation.mutate({ id: place.id }); }}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {canModify && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(place)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canDistribute && (
+                      <Button variant="secondary" size="sm" className="h-7 px-2 text-xs rounded-lg" onClick={() => { setSelectedPlace(place.id); setIsAidOpen(true); }}>
+                        Bantuan
+                      </Button>
+                    )}
+                    {canModify && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("Hapus rumah ibadah ini?")) deleteMutation.mutate({ id: place.id }); }}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>

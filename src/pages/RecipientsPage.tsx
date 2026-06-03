@@ -98,7 +98,7 @@ export default function RecipientsPage() {
     gender: "male" as "male" | "female",
     address: "",
     phone: "",
-    familyMembers: 1,
+    familyMembers: 1 as number | "",
     incomePerMonth: 0,
     placeOfWorshipId: 0,
     notes: "",
@@ -228,7 +228,7 @@ export default function RecipientsPage() {
       gender: formData.gender,
       address: formData.address || undefined,
       phone: formData.phone || undefined,
-      familyMembers: formData.familyMembers,
+      familyMembers: Number(formData.familyMembers) || 1,
       incomePerMonth: formData.incomePerMonth,
       placeOfWorshipId: resolvedPlaceOfWorshipId,
       notes: formData.notes || undefined,
@@ -292,7 +292,7 @@ export default function RecipientsPage() {
       gender: formData.gender,
       address: formData.address || undefined,
       phone: formData.phone || undefined,
-      familyMembers: formData.familyMembers,
+      familyMembers: Number(formData.familyMembers) || 1,
       incomePerMonth: formData.incomePerMonth,
       placeOfWorshipId: resolvedPlaceOfWorshipId,
       notes: formData.notes || undefined,
@@ -415,7 +415,7 @@ export default function RecipientsPage() {
                     value={formData.ktpDocument}
                     onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
                     required
-                    helperText="JPG, PNG, PDF - Maks 5MB"
+                    helperText="JPG, PNG, PDF - Maks 2MB"
                   />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <DocumentUploadField
@@ -440,7 +440,7 @@ export default function RecipientsPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Jumlah Anggota Keluarga</Label>
-                    <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
+                    <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: e.target.value === "" ? "" : parseInt(e.target.value) })} className="h-9" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -648,7 +648,7 @@ export default function RecipientsPage() {
                 value={formData.ktpDocument}
                 onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
                 required
-                helperText="JPG, PNG, PDF - Maks 5MB"
+                helperText="JPG, PNG, PDF - Maks 2MB"
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <DocumentUploadField
@@ -673,7 +673,7 @@ export default function RecipientsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Jumlah Anggota Keluarga</Label>
-                <Input type="number" value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
+                <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: e.target.value === "" ? "" : parseInt(e.target.value) })} className="h-9" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3">

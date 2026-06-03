@@ -2,6 +2,7 @@ import { useId, useMemo, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FileUp, FileText, Image as ImageIcon, X } from "lucide-react";
+import { toast } from "sonner";
 
 type DocumentUploadFieldProps = {
   label: string;
@@ -45,6 +46,13 @@ export function DocumentUploadField({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !onChange) return;
+
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    if (file.size > MAX_SIZE) {
+      toast.error("Pastikan gambar tidak lebih besar dari 2mb");
+      return;
+    }
+
     const dataUrl = await readFileAsDataUrl(file);
     onChange(dataUrl);
   };

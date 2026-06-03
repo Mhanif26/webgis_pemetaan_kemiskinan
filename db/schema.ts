@@ -108,6 +108,7 @@ export const distributions = mysqlTable(
     quantity: int("quantity").default(1),
     unit: varchar("unit", { length: 50 }).default("package"),
     distributionDate: timestamp("distribution_date").defaultNow().notNull(),
+    handoverPhoto: longtext("handover_photo"),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

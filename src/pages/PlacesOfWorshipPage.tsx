@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { LocationPicker } from "@/components/LocationPicker";
+import { DocumentUploadField } from "@/components/DocumentUploadField";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +82,7 @@ export default function PlacesOfWorshipPage() {
     quantity: 1,
     unit: "paket",
     notes: "",
+    handoverPhoto: "",
   });
   const [formData, setFormData] = useState({
     name: "",
@@ -142,6 +145,7 @@ export default function PlacesOfWorshipPage() {
         quantity: 1,
         unit: "paket",
         notes: "",
+        handoverPhoto: "",
       });
     },
   });
@@ -232,6 +236,10 @@ export default function PlacesOfWorshipPage() {
   const handleAidSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlace || !aidForm.recipientId) return;
+    if (!aidForm.handoverPhoto) {
+      toast.error("Foto penyerahan wajib diunggah.");
+      return;
+    }
     createAidMutation.mutate({
       placeOfWorshipId: selectedPlace,
       recipientId: aidForm.recipientId,
@@ -240,6 +248,7 @@ export default function PlacesOfWorshipPage() {
       quantity: aidForm.quantity,
       unit: aidForm.unit,
       notes: aidForm.notes || undefined,
+      handoverPhoto: aidForm.handoverPhoto,
     });
   };
 
@@ -507,7 +516,7 @@ export default function PlacesOfWorshipPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-1.5">
+                 <div className="space-y-1.5">
                   <Label className="text-xs">Catatan</Label>
                   <Input
                     value={aidForm.notes}
@@ -515,7 +524,17 @@ export default function PlacesOfWorshipPage() {
                     className="h-9"
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={createAidMutation.isPending || !aidForm.recipientId}>
+                <div className="space-y-1.5">
+                  <DocumentUploadField
+                    label="Foto Penyerahan Bantuan"
+                    value={aidForm.handoverPhoto}
+                    onChange={(value) => setAidForm((current) => ({ ...current, handoverPhoto: value ?? "" }))}
+                    required={true}
+                    helperText="Wajib menampakkan wajah penerima bantuan saat penyerahan"
+                    accept="image/*"
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={createAidMutation.isPending || !aidForm.recipientId || !aidForm.handoverPhoto}>
                   {createAidMutation.isPending ? "Menyimpan bantuan..." : "Simpan Bantuan"}
                 </Button>
               </form>
@@ -536,6 +555,7 @@ export default function PlacesOfWorshipPage() {
                           <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Jenis</th>
                           <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Jumlah</th>
                           <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Catatan</th>
+                          <th className="text-left py-3 px-3 text-xs font-medium text-muted-foreground">Foto Bukti</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -554,6 +574,31 @@ export default function PlacesOfWorshipPage() {
                               <td className="py-3 px-3 text-xs">{distribution.aidType}</td>
                               <td className="py-3 px-3 text-xs">{formatRupiah(Number.parseFloat(String(distribution.amount ?? 0)))}</td>
                               <td className="py-3 px-3 text-xs text-muted-foreground">{distribution.notes ?? "-"}</td>
+                              <td className="py-3 px-3 text-xs">
+                                {distribution.handoverPhoto ? (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <img
+                                        src={distribution.handoverPhoto}
+                                        alt="Bukti Penyerahan"
+                                        className="h-8 w-12 object-cover rounded cursor-pointer border hover:opacity-80 transition-opacity"
+                                      />
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-md">
+                                      <DialogHeader>
+                                        <DialogTitle>Foto Penyerahan Bantuan</DialogTitle>
+                                      </DialogHeader>
+                                      <img
+                                        src={distribution.handoverPhoto}
+                                        alt="Bukti Penyerahan"
+                                        className="w-full max-h-[70vh] object-contain rounded-lg border bg-white"
+                                      />
+                                    </DialogContent>
+                                  </Dialog>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </td>
                             </tr>
                           );
                         })}

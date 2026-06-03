@@ -59,6 +59,7 @@ export const distributionRouter = createRouter({
         quantity: z.number().min(1).default(1),
         unit: z.string().default("package"),
         notes: z.string().optional(),
+        handoverPhoto: z.string().min(1),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -77,6 +78,7 @@ export const distributionRouter = createRouter({
         amount: input.amount.toString(),
         distributedBy: input.distributedBy ?? null,
         notes: input.notes ?? null,
+        handoverPhoto: input.handoverPhoto,
       });
 
       if (created) {

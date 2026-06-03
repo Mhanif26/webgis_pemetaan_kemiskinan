@@ -576,18 +576,20 @@ export default function RecipientsPage() {
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={() => {
-                                  if (confirm("Hapus penerima ini?")) {
-                                    deleteMutation.mutate({ id: r.id });
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive"
+                                  onClick={() => {
+                                    if (confirm("Hapus penerima ini?")) {
+                                      deleteMutation.mutate({ id: r.id });
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </>
                           )}
                         </div>

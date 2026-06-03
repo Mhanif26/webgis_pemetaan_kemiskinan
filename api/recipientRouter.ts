@@ -250,13 +250,10 @@ export const recipientRouter = createRouter({
       }
 
       if (ctx.user.role === "manager") {
-        const placeIds = await findPlaceIdsByManagerId(ctx.user.id);
-        if (!placeIds.includes(target.placeOfWorshipId)) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Anda tidak berwenang menghapus data penerima ini.",
-          });
-        }
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Pengelola rumah ibadah tidak berwenang menghapus data penerima.",
+        });
       }
 
       await deleteRecipient(input.id);

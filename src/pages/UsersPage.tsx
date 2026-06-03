@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Shield,
   User,
@@ -72,12 +73,15 @@ export default function UsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "officer" | "manager">("manager");
+  const [selectedPlaces, setSelectedPlaces] = useState<number[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
 
   // tRPC Queries & Mutations
   const { data: users, isLoading, refetch } = trpc.user.list.useQuery(undefined, {
     enabled: !!currentUser && currentUser.role === "admin",
   });
+
+  const { data: places, isLoading: placesLoading } = trpc.placeOfWorship.list.useQuery();
 
   const createUserMutation = trpc.user.create.useMutation({
     onSuccess: () => {
@@ -121,6 +125,7 @@ export default function UsersPage() {
     setEmail("");
     setPassword("");
     setRole("manager");
+    setSelectedPlaces([]);
     setErrorMsg("");
     setSelectedUser(null);
   };
@@ -137,6 +142,13 @@ export default function UsersPage() {
     setEmail(user.email || "");
     setPassword(""); // Biarkan kosong kecuali ingin merubah sandi
     setRole(user.role);
+    
+    // Ambil list ID rumah ibadah yang sedang dikelola oleh pengguna ini
+    const managed = (places ?? [])
+      .filter((p) => p.managerId === user.id)
+      .map((p) => p.id);
+    setSelectedPlaces(managed);
+    
     setIsFormOpen(true);
   };
 
@@ -159,6 +171,11 @@ export default function UsersPage() {
       return;
     }
 
+    if (role === "manager" && selectedPlaces.length === 0) {
+      setErrorMsg("Harap pilih minimal satu rumah ibadah yang dikelola.");
+      return;
+    }
+
     if (selectedUser) {
       updateUserMutation.mutate({
         id: selectedUser.id,
@@ -166,6 +183,7 @@ export default function UsersPage() {
         email,
         password: password ? password : undefined,
         role,
+        placeIds: role === "manager" ? selectedPlaces : undefined,
       });
     } else {
       if (!password || password.length < 6) {
@@ -177,6 +195,7 @@ export default function UsersPage() {
         email,
         password,
         role,
+        placeIds: role === "manager" ? selectedPlaces : undefined,
       });
     }
   };
@@ -305,6 +324,15 @@ export default function UsersPage() {
                             <RoleIcon className="h-3 w-3" />
                             {ROLE_LABELS[u.role]}
                           </Badge>
+                          {u.role === "manager" && (
+                            <div className="text-[10px] text-muted-foreground mt-1 max-w-xs truncate">
+                              Mengelola:{" "}
+                              {(places ?? [])
+                                .filter((p) => p.managerId === u.id)
+                                .map((p) => p.name)
+                                .join(", ") || "-"}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-muted-foreground text-xs">
                           {u.lastSignInAt
@@ -486,6 +514,37 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {role === "manager" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Rumah Ibadah yang Dikelola (Bisa lebih dari satu)</Label>
+                <div className="border rounded-xl p-3 max-h-40 overflow-y-auto space-y-2 bg-background">
+                  {placesLoading ? (
+                    <div className="space-y-1 text-xs text-muted-foreground">Memuat data...</div>
+                  ) : !places || places.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">Belum ada data rumah ibadah.</div>
+                  ) : (
+                    places.map((place) => (
+                      <label key={place.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 p-1 rounded-lg transition-colors">
+                        <Checkbox
+                          checked={selectedPlaces.includes(place.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedPlaces([...selectedPlaces, place.id]);
+                            } else {
+                              setSelectedPlaces(selectedPlaces.filter((id) => id !== place.id));
+                            }
+                          }}
+                        />
+                        <span>
+                          {place.name} <span className="text-[10px] text-muted-foreground capitalize">({place.type})</span>
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             <DialogFooter className="pt-3 gap-2">
               <DialogClose asChild>

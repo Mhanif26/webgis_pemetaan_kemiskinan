@@ -10,6 +10,9 @@ import {
 } from "./queries/users";
 import { hashPassword } from "./auth";
 import { createActivityLog } from "./queries/activityLogs";
+import { getDb } from "./queries/connection";
+import * as schema from "@db/schema";
+import { inArray, eq } from "drizzle-orm";
 
 async function logActivitySafe(payload: Parameters<typeof createActivityLog>[0]) {
   try {
@@ -31,6 +34,7 @@ export const userRouter = createRouter({
         email: z.string().email(),
         password: z.string().min(6),
         role: z.enum(["admin", "officer", "manager"]),
+        placeIds: z.array(z.number()).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -53,6 +57,15 @@ export const userRouter = createRouter({
 
       const insertedId = result.insertId;
 
+      // Hubungkan rumah ibadah yang dipilih jika perannya adalah manager
+      if (input.role === "manager" && input.placeIds && input.placeIds.length > 0) {
+        const db = getDb();
+        await db
+          .update(schema.placesOfWorship)
+          .set({ managerId: insertedId })
+          .where(inArray(schema.placesOfWorship.id, input.placeIds));
+      }
+
       await logActivitySafe({
         userId: ctx.user.id,
         action: "CREATE",
@@ -72,6 +85,7 @@ export const userRouter = createRouter({
         email: z.string().email().optional(),
         password: z.string().min(6).optional(),
         role: z.enum(["admin", "officer", "manager"]).optional(),
+        placeIds: z.array(z.number()).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -95,6 +109,38 @@ export const userRouter = createRouter({
       if (input.role !== undefined) updatedFields.role = input.role;
 
       await updateUser(input.id, updatedFields);
+
+      // Kelola asosiasi Rumah Ibadah
+      const db = getDb();
+      // Cari role saat ini untuk mengecek apakah bertipe manager
+      const userRec = await db
+        .select({ role: schema.users.role })
+        .from(schema.users)
+        .where(eq(schema.users.id, input.id))
+        .limit(1);
+      const userRole = userRec[0]?.role;
+
+      if (userRole === "manager") {
+        // Hapus penugasan manager dari semua rumah ibadah yang sebelumnya dikelola user ini
+        await db
+          .update(schema.placesOfWorship)
+          .set({ managerId: null })
+          .where(eq(schema.placesOfWorship.managerId, input.id));
+
+        // Hubungkan ke kumpulan rumah ibadah baru jika ada
+        if (input.placeIds && input.placeIds.length > 0) {
+          await db
+            .update(schema.placesOfWorship)
+            .set({ managerId: input.id })
+            .where(inArray(schema.placesOfWorship.id, input.placeIds));
+        }
+      } else {
+        // Jika peran berubah dari manager ke peran lain, hapus semua relasi kelolanya
+        await db
+          .update(schema.placesOfWorship)
+          .set({ managerId: null })
+          .where(eq(schema.placesOfWorship.managerId, input.id));
+      }
 
       await logActivitySafe({
         userId: ctx.user.id,

@@ -464,7 +464,7 @@ export default function PlacesOfWorshipPage() {
                       <SelectContent>
                         {activeRecipients.map((recipient) => (
                           <SelectItem key={recipient.id} value={String(recipient.id)}>
-                            {recipient.name} - {recipient.nik}
+                            {recipient.name} - {recipient.phone || "-"}
                           </SelectItem>
                         ))}
                       </SelectContent>

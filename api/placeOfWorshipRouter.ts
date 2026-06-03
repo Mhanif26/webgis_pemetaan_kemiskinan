@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery, adminQuery } from "./middleware";
 import {
   findAllPlaces,
   findPlaceById,
@@ -26,8 +26,9 @@ export const placeOfWorshipRouter = createRouter({
         active: z.string().optional(),
       }).optional()
     )
-    .query(async ({ input }) => {
-      return findAllPlaces(input?.search, input?.type, input?.active);
+    .query(async ({ input, ctx }) => {
+      const managerId = ctx.user?.role === "manager" ? ctx.user.id : undefined;
+      return findAllPlaces(input?.search, input?.type, input?.active, managerId);
     }),
 
   byId: publicQuery
@@ -36,7 +37,7 @@ export const placeOfWorshipRouter = createRouter({
       return findPlaceById(input.id);
     }),
 
-  create: publicQuery
+  create: adminQuery
     .input(
       z.object({
         name: z.string().min(1),
@@ -72,7 +73,7 @@ export const placeOfWorshipRouter = createRouter({
       return created;
     }),
 
-  update: publicQuery
+  update: adminQuery
     .input(
       z.object({
         id: z.number(),
@@ -111,7 +112,7 @@ export const placeOfWorshipRouter = createRouter({
       return updated;
     }),
 
-  delete: publicQuery
+  delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const target = await findPlaceById(input.id);

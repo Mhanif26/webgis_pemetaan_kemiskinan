@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
+import { LocationPicker } from "@/components/LocationPicker";
+import { DocumentUploadField } from "@/components/DocumentUploadField";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +47,44 @@ const STATUS_OPTIONS = [
   { value: "suspended", label: "Ditangguhkan" },
 ];
 
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function formatDistance(distanceKm: number) {
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m`;
+  }
+  return `${distanceKm.toFixed(2)} km`;
+}
+
+function formatRupiah(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function parseRupiahInput(input: string) {
+  const digits = input.replace(/\D/g, "");
+  return digits ? Number.parseInt(digits, 10) : 0;
+}
+
 export default function RecipientsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager";
+  const canModify = isAdmin || isManager;
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -57,12 +98,15 @@ export default function RecipientsPage() {
     gender: "male" as "male" | "female",
     address: "",
     phone: "",
-    familyMembers: 1,
+    familyMembers: 1 as number | "",
     incomePerMonth: 0,
-    placeOfWorshipId: 1,
+    placeOfWorshipId: 0,
     notes: "",
     latitude: "",
     longitude: "",
+    ktpDocument: "",
+    kkDocument: "",
+    sktmDocument: "",
   });
 
   const utils = trpc.useUtils();
@@ -73,12 +117,34 @@ export default function RecipientsPage() {
 
   const { data: places } = trpc.placeOfWorship.list.useQuery({});
 
+  const placesWithCoordinates = useMemo(() => {
+    return (places ?? [])
+      .map((place) => {
+        const latitude = Number.parseFloat(String(place.latitude));
+        const longitude = Number.parseFloat(String(place.longitude));
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return null;
+        }
+        return {
+          id: place.id,
+          name: place.name,
+          latitude,
+          longitude,
+        };
+      })
+      .filter((place): place is NonNullable<typeof place> => place !== null);
+  }, [places]);
+
   const createMutation = trpc.recipient.create.useMutation({
     onSuccess: () => {
       utils.recipient.list.invalidate();
       utils.dashboard.stats.invalidate();
       setIsAddOpen(false);
       resetForm();
+      toast.success("Penerima bantuan baru berhasil didaftarkan!");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Gagal mendaftarkan penerima bantuan baru.");
     },
   });
 
@@ -87,6 +153,10 @@ export default function RecipientsPage() {
       utils.recipient.list.invalidate();
       setIsEditOpen(false);
       resetForm();
+      toast.success("Data penerima bantuan berhasil diperbarui!");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Gagal memperbarui data penerima.");
     },
   });
 
@@ -94,6 +164,10 @@ export default function RecipientsPage() {
     onSuccess: () => {
       utils.recipient.list.invalidate();
       utils.dashboard.stats.invalidate();
+      toast.success("Penerima bantuan berhasil dihapus.");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Gagal menghapus data penerima.");
     },
   });
 
@@ -107,17 +181,46 @@ export default function RecipientsPage() {
       phone: "",
       familyMembers: 1,
       incomePerMonth: 0,
-      placeOfWorshipId: 1,
+      placeOfWorshipId: 0,
       notes: "",
       latitude: "",
       longitude: "",
+      ktpDocument: "",
+      kkDocument: "",
+      sktmDocument: "",
     });
     setSelectedRecipient(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nik || !formData.name) return;
+    const resolvedPlaceOfWorshipId = nearestPlaceForForm?.id ?? formData.placeOfWorshipId;
+    
+    if (!formData.nik.trim()) {
+      toast.error("NIK harus diisi.");
+      return;
+    }
+    if (formData.nik.length !== 16) {
+      toast.error("NIK harus berjumlah tepat 16 digit.");
+      return;
+    }
+    if (!formData.name.trim()) {
+      toast.error("Nama Lengkap harus diisi.");
+      return;
+    }
+    if (!resolvedPlaceOfWorshipId) {
+      toast.error("Gagal menentukan Rumah Ibadah terdekat. Harap klik peta untuk memplot koordinat lokasi.");
+      return;
+    }
+    if (!formData.ktpDocument) {
+      toast.error("Foto KTP wajib diunggah.");
+      return;
+    }
+    if (!formData.kkDocument) {
+      toast.error("Foto Kartu Keluarga (KK) wajib diunggah.");
+      return;
+    }
+
     createMutation.mutate({
       nik: formData.nik,
       name: formData.name,
@@ -125,12 +228,15 @@ export default function RecipientsPage() {
       gender: formData.gender,
       address: formData.address || undefined,
       phone: formData.phone || undefined,
-      familyMembers: formData.familyMembers,
+      familyMembers: Number(formData.familyMembers) || 1,
       incomePerMonth: formData.incomePerMonth,
-      placeOfWorshipId: formData.placeOfWorshipId,
+      placeOfWorshipId: resolvedPlaceOfWorshipId,
       notes: formData.notes || undefined,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
+      ktpDocument: formData.ktpDocument,
+      kkDocument: formData.kkDocument,
+      sktmDocument: formData.sktmDocument || undefined,
     });
   };
 
@@ -148,6 +254,9 @@ export default function RecipientsPage() {
       notes: recipient.notes ?? "",
       latitude: recipient.latitude?.toString() ?? "",
       longitude: recipient.longitude?.toString() ?? "",
+      ktpDocument: recipient.ktpDocument ?? "",
+      kkDocument: recipient.kkDocument ?? "",
+      sktmDocument: recipient.sktmDocument ?? "",
     });
     setSelectedRecipient(recipient.id);
     setIsEditOpen(true);
@@ -155,7 +264,26 @@ export default function RecipientsPage() {
 
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault();
+    const resolvedPlaceOfWorshipId = nearestPlaceForForm?.id ?? formData.placeOfWorshipId;
     if (!selectedRecipient) return;
+
+    if (!formData.nik.trim()) {
+      toast.error("NIK harus diisi.");
+      return;
+    }
+    if (formData.nik.length !== 16) {
+      toast.error("NIK harus berjumlah tepat 16 digit.");
+      return;
+    }
+    if (!formData.name.trim()) {
+      toast.error("Nama Lengkap harus diisi.");
+      return;
+    }
+    if (!resolvedPlaceOfWorshipId) {
+      toast.error("Gagal menentukan Rumah Ibadah terdekat. Harap pilih koordinat lokasi di peta.");
+      return;
+    }
+
     updateMutation.mutate({
       id: selectedRecipient,
       nik: formData.nik,
@@ -164,12 +292,15 @@ export default function RecipientsPage() {
       gender: formData.gender,
       address: formData.address || undefined,
       phone: formData.phone || undefined,
-      familyMembers: formData.familyMembers,
+      familyMembers: Number(formData.familyMembers) || 1,
       incomePerMonth: formData.incomePerMonth,
-      placeOfWorshipId: formData.placeOfWorshipId,
+      placeOfWorshipId: resolvedPlaceOfWorshipId,
       notes: formData.notes || undefined,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
+      ktpDocument: formData.ktpDocument || undefined,
+      kkDocument: formData.kkDocument || undefined,
+      sktmDocument: formData.sktmDocument || undefined,
     });
   };
 
@@ -185,6 +316,41 @@ export default function RecipientsPage() {
 
   const selectedRec = recipients?.find((r) => r.id === selectedRecipient);
 
+  const updateFormData = (next: Partial<typeof formData>) => {
+    setFormData((current) => ({ ...current, ...next }));
+  };
+
+  const nearestPlaceForForm = (() => {
+    const latitude = Number.parseFloat(formData.latitude);
+    const longitude = Number.parseFloat(formData.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+
+    let nearest: { id: number; name: string; distanceKm: number } | null = null;
+    for (const place of placesWithCoordinates) {
+      const distanceKm = haversineDistanceKm(latitude, longitude, place.latitude, place.longitude);
+      if (!nearest || distanceKm < nearest.distanceKm) {
+        nearest = { id: place.id, name: place.name, distanceKm };
+      }
+    }
+    return nearest;
+  })();
+
+  const getRecipientDistanceToPlace = (recipient: NonNullable<typeof recipients>[number]) => {
+    const latitude = Number.parseFloat(String(recipient.latitude));
+    const longitude = Number.parseFloat(String(recipient.longitude));
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+
+    const place = placesWithCoordinates.find((item) => item.id === recipient.placeOfWorshipId);
+    if (!place) {
+      return null;
+    }
+    return haversineDistanceKm(latitude, longitude, place.latitude, place.longitude);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -194,95 +360,122 @@ export default function RecipientsPage() {
             Kelola data warga penerima bantuan sosial
           </p>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="rounded-xl" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Tambah Penerima
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Tambah Penerima Baru</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">NIK</Label>
-                  <Input value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} placeholder="16 digit" maxLength={16} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Nama Lengkap</Label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nama" className="h-9" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tanggal Lahir</Label>
-                  <Input type="date" value={formData.birthDate} onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Jenis Kelamin</Label>
-                  <Select value={formData.gender} onValueChange={(v: "male" | "female") => setFormData({ ...formData, gender: v })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="male">Laki-laki</SelectItem>
-                      <SelectItem value="female">Perempuan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Alamat</Label>
-                <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Telepon</Label>
-                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Jumlah Keluarga</Label>
-                  <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => setFormData({ ...formData, familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Pendapatan/Bulan (Rp)</Label>
-                  <Input type="number" min={0} value={formData.incomePerMonth} onChange={(e) => setFormData({ ...formData, incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Rumah Ibadah</Label>
-                  <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => setFormData({ ...formData, placeOfWorshipId: parseInt(v) })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(places ?? []).map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Latitude</Label>
-                  <Input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} placeholder="-6.xxxx" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Longitude</Label>
-                  <Input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} placeholder="106.xxxx" className="h-9" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Catatan</Label>
-                <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Catatan tambahan" className="h-9" />
-              </div>
-              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Menyimpan..." : "Simpan"}
+        {canModify && (
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="rounded-xl" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Tambah Penerima
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Tambah Penerima Baru</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">NIK</Label>
+                    <Input value={formData.nik} onChange={(e) => updateFormData({ nik: e.target.value })} placeholder="16 digit" maxLength={16} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Nama Lengkap</Label>
+                    <Input value={formData.name} onChange={(e) => updateFormData({ name: e.target.value })} placeholder="Nama" className="h-9" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tanggal Lahir</Label>
+                    <Input type="date" value={formData.birthDate} onChange={(e) => updateFormData({ birthDate: e.target.value })} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Jenis Kelamin</Label>
+                    <Select value={formData.gender} onValueChange={(v: "male" | "female") => updateFormData({ gender: v })}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Laki-laki</SelectItem>
+                        <SelectItem value="female">Perempuan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Alamat</Label>
+                  <Input value={formData.address} onChange={(e) => updateFormData({ address: e.target.value })} placeholder="Alamat lengkap" className="h-9" />
+                </div>
+                <LocationPicker
+                  value={formData}
+                  onChange={updateFormData}
+                  label="Pilih titik lokasi dari peta"
+                  hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
+                />
+                <div className="grid grid-cols-1 gap-3">
+                  <DocumentUploadField
+                    label="Foto KTP (Kartu Tanda Penduduk)"
+                    value={formData.ktpDocument}
+                    onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
+                    required
+                    helperText="JPG, PNG, PDF - Maks 2MB"
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <DocumentUploadField
+                      label="Foto Kartu Keluarga (KK)"
+                      value={formData.kkDocument}
+                      onChange={(value) => updateFormData({ kkDocument: value ?? "" })}
+                      required
+                      helperText="JPG, PNG, PDF"
+                    />
+                    <DocumentUploadField
+                      label="Surat Keterangan Tidak Mampu (SKTM)"
+                      value={formData.sktmDocument}
+                      onChange={(value) => updateFormData({ sktmDocument: value ?? "" })}
+                      helperText="JPG, PNG, PDF (Opsional)"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Telepon</Label>
+                    <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Jumlah Anggota Keluarga</Label>
+                    <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: e.target.value === "" ? "" : parseInt(e.target.value) })} className="h-9" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Pendapatan/Bulan (Rp)</Label>
+                    <Input
+                      value={formatRupiah(formData.incomePerMonth)}
+                      onChange={(e) => updateFormData({ incomePerMonth: parseRupiahInput(e.target.value) })}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">Rumah ibadah terdekat (otomatis)</p>
+                  <p>
+                    {nearestPlaceForForm
+                      ? `${nearestPlaceForForm.name} • ${formatDistance(nearestPlaceForForm.distanceKm)}`
+                      : "Pilih titik pada peta untuk menentukan rumah ibadah terdekat."}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Catatan</Label>
+                  <Input value={formData.notes} onChange={(e) => updateFormData({ notes: e.target.value })} placeholder="Catatan tambahan" className="h-9" />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={createMutation.isPending || !formData.ktpDocument || !formData.kkDocument}
+                >
+                  {createMutation.isPending ? "Menyimpan..." : "Simpan"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Filters */}
@@ -338,6 +531,7 @@ export default function RecipientsPage() {
                     <TableHead className="text-xs">Nama</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Rumah Ibadah</TableHead>
+                    <TableHead className="text-xs">Jarak</TableHead>
                     <TableHead className="text-xs">Keluarga</TableHead>
                     <TableHead className="text-xs">Pendapatan</TableHead>
                     <TableHead className="text-xs">Aksi</TableHead>
@@ -352,9 +546,15 @@ export default function RecipientsPage() {
                       <TableCell className="text-xs">
                         {places?.find((p) => p.id === r.placeOfWorshipId)?.name ?? "-"}
                       </TableCell>
+                      <TableCell className="text-xs">
+                        {(() => {
+                          const distanceKm = getRecipientDistanceToPlace(r);
+                          return distanceKm === null ? "-" : formatDistance(distanceKm);
+                        })()}
+                      </TableCell>
                       <TableCell className="text-xs">{r.familyMembers}</TableCell>
                       <TableCell className="text-xs">
-                        Rp {(r.incomePerMonth ?? 0).toLocaleString("id-ID")}
+                        {formatRupiah(r.incomePerMonth ?? 0)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -366,26 +566,32 @@ export default function RecipientsPage() {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleEdit(r)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => {
-                              if (confirm("Hapus penerima ini?")) {
-                                deleteMutation.mutate({ id: r.id });
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {canModify && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleEdit(r)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive"
+                                  onClick={() => {
+                                    if (confirm("Hapus penerima ini?")) {
+                                      deleteMutation.mutate({ id: r.id });
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -405,21 +611,21 @@ export default function RecipientsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">NIK</Label>
-                <Input value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} className="h-9" />
+                <Input value={formData.nik} onChange={(e) => updateFormData({ nik: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Nama</Label>
-                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-9" />
+                <Input value={formData.name} onChange={(e) => updateFormData({ name: e.target.value })} className="h-9" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Tanggal Lahir</Label>
-                <Input type="date" value={formData.birthDate} onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })} className="h-9" />
+                <Input type="date" value={formData.birthDate} onChange={(e) => updateFormData({ birthDate: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Jenis Kelamin</Label>
-                <Select value={formData.gender} onValueChange={(v: "male" | "female") => setFormData({ ...formData, gender: v })}>
+                <Select value={formData.gender} onValueChange={(v: "male" | "female") => updateFormData({ gender: v })}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Laki-laki</SelectItem>
@@ -430,44 +636,65 @@ export default function RecipientsPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Alamat</Label>
-              <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="h-9" />
+              <Input value={formData.address} onChange={(e) => updateFormData({ address: e.target.value })} className="h-9" />
+            </div>
+            <LocationPicker
+              value={formData}
+              onChange={updateFormData}
+              label="Pilih titik lokasi dari peta"
+              hint="Klik atau geser pin. Alamat akan terisi otomatis dari koordinat yang dipilih."
+            />
+            <div className="grid grid-cols-1 gap-3">
+              <DocumentUploadField
+                label="Foto KTP (Kartu Tanda Penduduk)"
+                value={formData.ktpDocument}
+                onChange={(value) => updateFormData({ ktpDocument: value ?? "" })}
+                required
+                helperText="JPG, PNG, PDF - Maks 2MB"
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <DocumentUploadField
+                  label="Foto Kartu Keluarga (KK)"
+                  value={formData.kkDocument}
+                  onChange={(value) => updateFormData({ kkDocument: value ?? "" })}
+                  required
+                  helperText="JPG, PNG, PDF"
+                />
+                <DocumentUploadField
+                  label="Surat Keterangan Tidak Mampu (SKTM)"
+                  value={formData.sktmDocument}
+                  onChange={(value) => updateFormData({ sktmDocument: value ?? "" })}
+                  helperText="JPG, PNG, PDF (Opsional)"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Telepon</Label>
-                <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="h-9" />
+                <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Jumlah Keluarga</Label>
-                <Input type="number" value={formData.familyMembers} onChange={(e) => setFormData({ ...formData, familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
+                <Label className="text-xs">Jumlah Anggota Keluarga</Label>
+                <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: e.target.value === "" ? "" : parseInt(e.target.value) })} className="h-9" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Pendapatan/Bulan</Label>
-                <Input type="number" value={formData.incomePerMonth} onChange={(e) => setFormData({ ...formData, incomePerMonth: parseInt(e.target.value) || 0 })} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Rumah Ibadah</Label>
-                <Select value={String(formData.placeOfWorshipId)} onValueChange={(v) => setFormData({ ...formData, placeOfWorshipId: parseInt(v) })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(places ?? []).map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={formatRupiah(formData.incomePerMonth)}
+                  onChange={(e) => updateFormData({ incomePerMonth: parseRupiahInput(e.target.value) })}
+                  className="h-9"
+                />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Latitude</Label>
-                <Input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Longitude</Label>
-                <Input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} className="h-9" />
-              </div>
+            <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Rumah ibadah terdekat (otomatis)</p>
+              <p>
+                {nearestPlaceForForm
+                  ? `${nearestPlaceForForm.name} • ${formatDistance(nearestPlaceForForm.distanceKm)}`
+                  : "Pilih titik pada peta untuk menentukan rumah ibadah terdekat."}
+              </p>
             </div>
             <Button type="submit" className="w-full" disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Memperbarui..." : "Perbarui"}
@@ -478,7 +705,7 @@ export default function RecipientsPage() {
 
       {/* View Dialog */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Detail Penerima</DialogTitle></DialogHeader>
           {selectedRec && (
             <div className="space-y-3 text-sm">
@@ -505,6 +732,16 @@ export default function RecipientsPage() {
               )}
               {selectedRec.notes && (
                 <div className="text-xs bg-muted p-2 rounded-lg"><span className="text-muted-foreground">Catatan:</span> {selectedRec.notes}</div>
+              )}
+              {(selectedRec.ktpDocument || selectedRec.kkDocument || selectedRec.sktmDocument) && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium">Dokumen Terunggah</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <DocumentUploadField label="KTP" value={selectedRec.ktpDocument} />
+                    <DocumentUploadField label="KK" value={selectedRec.kkDocument} />
+                    <DocumentUploadField label="SKTM" value={selectedRec.sktmDocument} />
+                  </div>
+                </div>
               )}
             </div>
           )}

@@ -1,4 +1,4 @@
-import { eq, like, and, count, desc } from "drizzle-orm";
+import { eq, like, and, count, desc, inArray, sql } from "drizzle-orm";
 import { getDb } from "./connection";
 import { recipients } from "@db/schema";
 import type { InsertRecipient } from "@db/schema";
@@ -6,7 +6,7 @@ import type { InsertRecipient } from "@db/schema";
 export async function findAllRecipients(
   search?: string,
   status?: string,
-  placeOfWorshipId?: number
+  placeOfWorshipIds?: number | number[]
 ) {
   const db = getDb();
   const conditions = [];
@@ -16,8 +16,16 @@ export async function findAllRecipients(
   if (status && status !== "all") {
     conditions.push(eq(recipients.status, status as "pending" | "active" | "rejected" | "suspended"));
   }
-  if (placeOfWorshipId) {
-    conditions.push(eq(recipients.placeOfWorshipId, placeOfWorshipId));
+  if (placeOfWorshipIds !== undefined) {
+    if (Array.isArray(placeOfWorshipIds)) {
+      if (placeOfWorshipIds.length > 0) {
+        conditions.push(inArray(recipients.placeOfWorshipId, placeOfWorshipIds));
+      } else {
+        conditions.push(sql`1 = 0`);
+      }
+    } else {
+      conditions.push(eq(recipients.placeOfWorshipId, placeOfWorshipIds));
+    }
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   return db.select().from(recipients).where(where).orderBy(desc(recipients.createdAt));
@@ -29,11 +37,19 @@ export async function findRecipientById(id: number) {
   return rows.at(0) ?? null;
 }
 
-export async function findPendingRecipients(placeOfWorshipId?: number) {
+export async function findPendingRecipients(placeOfWorshipIds?: number | number[]) {
   const db = getDb();
   const conditions = [eq(recipients.status, "pending")];
-  if (placeOfWorshipId) {
-    conditions.push(eq(recipients.placeOfWorshipId, placeOfWorshipId));
+  if (placeOfWorshipIds !== undefined) {
+    if (Array.isArray(placeOfWorshipIds)) {
+      if (placeOfWorshipIds.length > 0) {
+        conditions.push(inArray(recipients.placeOfWorshipId, placeOfWorshipIds));
+      } else {
+        conditions.push(sql`1 = 0`);
+      }
+    } else {
+      conditions.push(eq(recipients.placeOfWorshipId, placeOfWorshipIds));
+    }
   }
   return db.select().from(recipients)
     .where(and(...conditions))

@@ -112,31 +112,62 @@ export async function seedLocalUserIfMissing() {
   }
   // Check existence without selecting `password_hash` to avoid failures on older schemas
   try {
-    const [rows] = await db.execute(sql`SELECT id FROM users WHERE unionId = ${LocalAuth.defaultAdminEmail} LIMIT 1`);
-    if (Array.isArray(rows) && rows.length > 0) return;
+    await db.execute(sql`SELECT id FROM users WHERE unionId = ${LocalAuth.defaultAdminEmail} LIMIT 1`);
   } catch (err) {
     console.warn('[seed] existence check failed, will attempt to insert anyway', err);
   }
 
-  // Try to insert using the typed Drizzle insert (preferred). If that fails because the
-  // `password_hash` column is missing, fall back to a raw INSERT that omits the column.
+  // 1. Ensure admin account
   try {
-    await db.insert(users).values({
-      unionId: LocalAuth.defaultAdminEmail,
-      name: "Admin Lokal",
-      email: LocalAuth.defaultAdminEmail,
-      passwordHash: hashPassword(LocalAuth.defaultAdminPassword),
-      role: "admin",
-      lastSignInAt: new Date(),
-    });
+    const [existingAdmin] = await db.execute(sql`SELECT id FROM users WHERE unionId = ${LocalAuth.defaultAdminEmail} LIMIT 1`);
+    if (!existingAdmin || (Array.isArray(existingAdmin) && existingAdmin.length === 0)) {
+      await db.insert(users).values({
+        unionId: LocalAuth.defaultAdminEmail,
+        name: "Admin Lokal",
+        email: LocalAuth.defaultAdminEmail,
+        passwordHash: hashPassword(LocalAuth.defaultAdminPassword),
+        role: "admin",
+        lastSignInAt: new Date(),
+      });
+      console.log(`[seed] Created admin account: ${LocalAuth.defaultAdminEmail}`);
+    }
   } catch (err) {
-    console.warn('[seed] typed insert failed, attempting fallback insert without password_hash', err);
+    console.warn('[seed] Admin seeding failed, attempting fallback', err);
     try {
-      await db.execute(sql`INSERT INTO users (unionId, name, email, role, lastSignInAt) VALUES (
+      await db.execute(sql`INSERT IGNORE INTO users (unionId, name, email, role, lastSignInAt) VALUES (
         ${LocalAuth.defaultAdminEmail}, ${'Admin Lokal'}, ${LocalAuth.defaultAdminEmail}, ${'admin'}, ${new Date()}
       )`);
     } catch (err2) {
-      console.error('[seed] fallback insert also failed', err2);
+      console.error('[seed] Admin fallback failed', err2);
+    }
+  }
+
+  // 2. Seed default roles for testing
+  const defaultAccounts = [
+    { email: "officer@example.com", name: "Petugas Lapangan", role: "officer" as const },
+    { email: "manager@example.com", name: "Pengelola Wilayah", role: "manager" as const },
+  ];
+
+  for (const acc of defaultAccounts) {
+    try {
+      const res = await db.execute(sql`SELECT id FROM users WHERE unionId = ${acc.email} LIMIT 1`);
+      const [existing] = res as any;
+      
+      if (existing && (!Array.isArray(existing) || existing.length > 0)) {
+        continue;
+      }
+
+      await db.insert(users).values({
+        unionId: acc.email,
+        name: acc.name,
+        email: acc.email,
+        passwordHash: hashPassword("password123"),
+        role: acc.role,
+        lastSignInAt: new Date(),
+      });
+      console.log(`[seed] Created ${acc.role} account: ${acc.email}`);
+    } catch (err) {
+      console.warn(`[seed] Failed to create ${acc.role} (${acc.email})`, err);
     }
   }
 }

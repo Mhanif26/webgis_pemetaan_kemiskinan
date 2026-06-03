@@ -3,7 +3,7 @@ import { getDb } from "./connection";
 import { placesOfWorship } from "@db/schema";
 import type { InsertPlaceOfWorship } from "@db/schema";
 
-export async function findAllPlaces(search?: string, type?: string, active?: string) {
+export async function findAllPlaces(search?: string, type?: string, active?: string, managerId?: number) {
   const db = getDb();
   const conditions = [];
   if (search) {
@@ -15,6 +15,9 @@ export async function findAllPlaces(search?: string, type?: string, active?: str
   if (active && active !== "all") {
     conditions.push(eq(placesOfWorship.isActive, active as "yes" | "no"));
   }
+  if (managerId !== undefined) {
+    conditions.push(eq(placesOfWorship.managerId, managerId));
+  }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   return db.select().from(placesOfWorship).where(where).orderBy(desc(placesOfWorship.createdAt));
 }
@@ -23,6 +26,21 @@ export async function findPlaceById(id: number) {
   const db = getDb();
   const rows = await db.select().from(placesOfWorship).where(eq(placesOfWorship.id, id)).limit(1);
   return rows.at(0) ?? null;
+}
+
+export async function findPlaceByManagerId(managerId: number) {
+  const db = getDb();
+  const rows = await db.select().from(placesOfWorship).where(eq(placesOfWorship.managerId, managerId)).limit(1);
+  return rows.at(0) ?? null;
+}
+
+export async function findPlaceIdsByManagerId(managerId: number) {
+  const db = getDb();
+  const rows = await db
+    .select({ id: placesOfWorship.id })
+    .from(placesOfWorship)
+    .where(eq(placesOfWorship.managerId, managerId));
+  return rows.map((r) => r.id);
 }
 
 export async function createPlace(data: InsertPlaceOfWorship) {

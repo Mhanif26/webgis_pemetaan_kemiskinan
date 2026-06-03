@@ -112,7 +112,7 @@ export async function seedLocalUserIfMissing() {
   }
   // Check existence without selecting `password_hash` to avoid failures on older schemas
   try {
-    const [rows] = await db.execute(sql`SELECT id FROM users WHERE unionId = ${LocalAuth.defaultAdminEmail} LIMIT 1`);
+    await db.execute(sql`SELECT id FROM users WHERE unionId = ${LocalAuth.defaultAdminEmail} LIMIT 1`);
   } catch (err) {
     console.warn('[seed] existence check failed, will attempt to insert anyway', err);
   }

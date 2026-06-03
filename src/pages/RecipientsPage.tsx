@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { LocationPicker } from "@/components/LocationPicker";
 import { DocumentUploadField } from "@/components/DocumentUploadField";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,6 +141,10 @@ export default function RecipientsPage() {
       utils.dashboard.stats.invalidate();
       setIsAddOpen(false);
       resetForm();
+      toast.success("Penerima bantuan baru berhasil didaftarkan!");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Gagal mendaftarkan penerima bantuan baru.");
     },
   });
 
@@ -147,6 +153,10 @@ export default function RecipientsPage() {
       utils.recipient.list.invalidate();
       setIsEditOpen(false);
       resetForm();
+      toast.success("Data penerima bantuan berhasil diperbarui!");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Gagal memperbarui data penerima.");
     },
   });
 
@@ -154,6 +164,10 @@ export default function RecipientsPage() {
     onSuccess: () => {
       utils.recipient.list.invalidate();
       utils.dashboard.stats.invalidate();
+      toast.success("Penerima bantuan berhasil dihapus.");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Gagal menghapus data penerima.");
     },
   });
 
@@ -181,8 +195,32 @@ export default function RecipientsPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const resolvedPlaceOfWorshipId = nearestPlaceForForm?.id ?? formData.placeOfWorshipId;
-    if (!formData.nik || !formData.name || !resolvedPlaceOfWorshipId) return;
-    if (!formData.ktpDocument || !formData.kkDocument) return;
+    
+    if (!formData.nik.trim()) {
+      toast.error("NIK harus diisi.");
+      return;
+    }
+    if (formData.nik.length !== 16) {
+      toast.error("NIK harus berjumlah tepat 16 digit.");
+      return;
+    }
+    if (!formData.name.trim()) {
+      toast.error("Nama Lengkap harus diisi.");
+      return;
+    }
+    if (!resolvedPlaceOfWorshipId) {
+      toast.error("Gagal menentukan Rumah Ibadah terdekat. Harap klik peta untuk memplot koordinat lokasi.");
+      return;
+    }
+    if (!formData.ktpDocument) {
+      toast.error("Foto KTP wajib diunggah.");
+      return;
+    }
+    if (!formData.kkDocument) {
+      toast.error("Foto Kartu Keluarga (KK) wajib diunggah.");
+      return;
+    }
+
     createMutation.mutate({
       nik: formData.nik,
       name: formData.name,
@@ -228,6 +266,24 @@ export default function RecipientsPage() {
     e.preventDefault();
     const resolvedPlaceOfWorshipId = nearestPlaceForForm?.id ?? formData.placeOfWorshipId;
     if (!selectedRecipient) return;
+
+    if (!formData.nik.trim()) {
+      toast.error("NIK harus diisi.");
+      return;
+    }
+    if (formData.nik.length !== 16) {
+      toast.error("NIK harus berjumlah tepat 16 digit.");
+      return;
+    }
+    if (!formData.name.trim()) {
+      toast.error("Nama Lengkap harus diisi.");
+      return;
+    }
+    if (!resolvedPlaceOfWorshipId) {
+      toast.error("Gagal menentukan Rumah Ibadah terdekat. Harap pilih koordinat lokasi di peta.");
+      return;
+    }
+
     updateMutation.mutate({
       id: selectedRecipient,
       nik: formData.nik,
@@ -264,7 +320,7 @@ export default function RecipientsPage() {
     setFormData((current) => ({ ...current, ...next }));
   };
 
-  const nearestPlaceForForm = useMemo(() => {
+  const nearestPlaceForForm = (() => {
     const latitude = Number.parseFloat(formData.latitude);
     const longitude = Number.parseFloat(formData.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -279,16 +335,7 @@ export default function RecipientsPage() {
       }
     }
     return nearest;
-  }, [formData.latitude, formData.longitude, placesWithCoordinates]);
-
-  useEffect(() => {
-    if (!nearestPlaceForForm) return;
-    setFormData((current) =>
-      current.placeOfWorshipId === nearestPlaceForForm.id
-        ? current
-        : { ...current, placeOfWorshipId: nearestPlaceForForm.id },
-    );
-  }, [nearestPlaceForForm]);
+  })();
 
   const getRecipientDistanceToPlace = (recipient: NonNullable<typeof recipients>[number]) => {
     const latitude = Number.parseFloat(String(recipient.latitude));
@@ -329,21 +376,21 @@ export default function RecipientsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">NIK</Label>
-                    <Input value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} placeholder="16 digit" maxLength={16} className="h-9" />
+                    <Input value={formData.nik} onChange={(e) => updateFormData({ nik: e.target.value })} placeholder="16 digit" maxLength={16} className="h-9" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Nama Lengkap</Label>
-                    <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nama" className="h-9" />
+                    <Input value={formData.name} onChange={(e) => updateFormData({ name: e.target.value })} placeholder="Nama" className="h-9" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Tanggal Lahir</Label>
-                    <Input type="date" value={formData.birthDate} onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })} className="h-9" />
+                    <Input type="date" value={formData.birthDate} onChange={(e) => updateFormData({ birthDate: e.target.value })} className="h-9" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Jenis Kelamin</Label>
-                    <Select value={formData.gender} onValueChange={(v: "male" | "female") => setFormData({ ...formData, gender: v })}>
+                    <Select value={formData.gender} onValueChange={(v: "male" | "female") => updateFormData({ gender: v })}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="male">Laki-laki</SelectItem>
@@ -392,7 +439,7 @@ export default function RecipientsPage() {
                     <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} placeholder="08xxxxxxxxxx" className="h-9" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Jumlah Keluarga</Label>
+                    <Label className="text-xs">Jumlah Anggota Keluarga</Label>
                     <Input type="number" min={1} value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
                   </div>
                 </div>
@@ -562,21 +609,21 @@ export default function RecipientsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">NIK</Label>
-                <Input value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} className="h-9" />
+                <Input value={formData.nik} onChange={(e) => updateFormData({ nik: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Nama</Label>
-                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-9" />
+                <Input value={formData.name} onChange={(e) => updateFormData({ name: e.target.value })} className="h-9" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Tanggal Lahir</Label>
-                <Input type="date" value={formData.birthDate} onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })} className="h-9" />
+                <Input type="date" value={formData.birthDate} onChange={(e) => updateFormData({ birthDate: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Jenis Kelamin</Label>
-                <Select value={formData.gender} onValueChange={(v: "male" | "female") => setFormData({ ...formData, gender: v })}>
+                <Select value={formData.gender} onValueChange={(v: "male" | "female") => updateFormData({ gender: v })}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Laki-laki</SelectItem>
@@ -625,7 +672,7 @@ export default function RecipientsPage() {
                 <Input value={formData.phone} onChange={(e) => updateFormData({ phone: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Jumlah Keluarga</Label>
+                <Label className="text-xs">Jumlah Anggota Keluarga</Label>
                 <Input type="number" value={formData.familyMembers} onChange={(e) => updateFormData({ familyMembers: parseInt(e.target.value) || 1 })} className="h-9" />
               </div>
             </div>
@@ -656,7 +703,7 @@ export default function RecipientsPage() {
 
       {/* View Dialog */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Detail Penerima</DialogTitle></DialogHeader>
           {selectedRec && (
             <div className="space-y-3 text-sm">

@@ -1,40 +1,100 @@
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, inArray, and } from "drizzle-orm";
 import { getDb } from "./connection";
 import { recipients, placesOfWorship, distributions } from "@db/schema";
 
-export async function getDashboardStats() {
+export async function getDashboardStats(placeOfWorshipIds?: number[]) {
   const db = getDb();
 
-  const totalRecipients = await db.select({ count: sql<number>`COUNT(*)` }).from(recipients);
-  const activeRecipients = await db.select({ count: sql<number>`COUNT(*)` })
+  if (placeOfWorshipIds !== undefined && placeOfWorshipIds.length === 0) {
+    return {
+      totalRecipients: 0,
+      activeRecipients: 0,
+      pendingRecipients: 0,
+      totalPlaces: 0,
+      activePlaces: 0,
+      totalDistributions: 0,
+      totalAidAmount: 0,
+      byType: [],
+      byStatus: [],
+      monthlyDist: [],
+    };
+  }
+
+  const hasFilter = placeOfWorshipIds !== undefined;
+
+  const totalRecipients = await db
+    .select({ count: sql<number>`COUNT(*)` })
     .from(recipients)
-    .where(eq(recipients.status, "active"));
-  const pendingRecipients = await db.select({ count: sql<number>`COUNT(*)` })
+    .where(hasFilter ? inArray(recipients.placeOfWorshipId, placeOfWorshipIds) : undefined);
+
+  const activeRecipients = await db
+    .select({ count: sql<number>`COUNT(*)` })
     .from(recipients)
-    .where(eq(recipients.status, "pending"));
-  const totalPlaces = await db.select({ count: sql<number>`COUNT(*)` }).from(placesOfWorship);
-  const activePlaces = await db.select({ count: sql<number>`COUNT(*)` })
+    .where(
+      hasFilter
+        ? and(inArray(recipients.placeOfWorshipId, placeOfWorshipIds), eq(recipients.status, "active"))
+        : eq(recipients.status, "active")
+    );
+
+  const pendingRecipients = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(recipients)
+    .where(
+      hasFilter
+        ? and(inArray(recipients.placeOfWorshipId, placeOfWorshipIds), eq(recipients.status, "pending"))
+        : eq(recipients.status, "pending")
+    );
+
+  const totalPlaces = await db
+    .select({ count: sql<number>`COUNT(*)` })
     .from(placesOfWorship)
-    .where(eq(placesOfWorship.isActive, "yes"));
-  const totalDistributions = await db.select({ count: sql<number>`COUNT(*)` }).from(distributions);
-  const totalAidAmount = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-    .from(distributions);
+    .where(hasFilter ? inArray(placesOfWorship.id, placeOfWorshipIds) : undefined);
 
-  const byType = await db.select({
-    type: placesOfWorship.type,
-    count: sql<number>`COUNT(*)`,
-  }).from(placesOfWorship).groupBy(placesOfWorship.type);
+  const activePlaces = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(placesOfWorship)
+    .where(
+      hasFilter
+        ? and(inArray(placesOfWorship.id, placeOfWorshipIds), eq(placesOfWorship.isActive, "yes"))
+        : eq(placesOfWorship.isActive, "yes")
+    );
 
-  const byStatus = await db.select({
-    status: recipients.status,
-    count: sql<number>`COUNT(*)`,
-  }).from(recipients).groupBy(recipients.status);
+  const totalDistributions = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(distributions)
+    .where(hasFilter ? inArray(distributions.placeOfWorshipId, placeOfWorshipIds) : undefined);
 
-  const monthlyDist = await db.select({
-    month: sql<string>`DATE_FORMAT(distribution_date, '%Y-%m')`,
-    count: sql<number>`COUNT(*)`,
-    amount: sql<number>`COALESCE(SUM(amount), 0)`,
-  }).from(distributions)
+  const totalAidAmount = await db
+    .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+    .from(distributions)
+    .where(hasFilter ? inArray(distributions.placeOfWorshipId, placeOfWorshipIds) : undefined);
+
+  const byType = await db
+    .select({
+      type: placesOfWorship.type,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(placesOfWorship)
+    .where(hasFilter ? inArray(placesOfWorship.id, placeOfWorshipIds) : undefined)
+    .groupBy(placesOfWorship.type);
+
+  const byStatus = await db
+    .select({
+      status: recipients.status,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(recipients)
+    .where(hasFilter ? inArray(recipients.placeOfWorshipId, placeOfWorshipIds) : undefined)
+    .groupBy(recipients.status);
+
+  const monthlyDist = await db
+    .select({
+      month: sql<string>`DATE_FORMAT(distribution_date, '%Y-%m')`,
+      count: sql<number>`COUNT(*)`,
+      amount: sql<number>`COALESCE(SUM(amount), 0)`,
+    })
+    .from(distributions)
+    .where(hasFilter ? inArray(distributions.placeOfWorshipId, placeOfWorshipIds) : undefined)
     .groupBy(sql`DATE_FORMAT(distribution_date, '%Y-%m')`)
     .orderBy(sql`DATE_FORMAT(distribution_date, '%Y-%m')`)
     .limit(12);

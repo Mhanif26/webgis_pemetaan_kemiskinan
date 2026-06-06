@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LocalAuth } from "@contracts/constants";
+import { HandHeart } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,8 +27,8 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.12),_transparent_35%),linear-gradient(180deg,_#f8fafc,_#eef2ff)] p-4">
       <Card className="w-full max-w-md rounded-3xl border-0 shadow-2xl shadow-slate-900/10 backdrop-blur bg-white/90">
         <CardHeader className="space-y-2 text-center pb-4">
-          <div className="mx-auto h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xl">
-            W
+          <div className="mx-auto h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+            <HandHeart className="h-6 w-6" />
           </div>
           <CardTitle className="text-2xl">Masuk ke WebGIS</CardTitle>
           <CardDescription>

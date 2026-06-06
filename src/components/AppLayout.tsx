@@ -17,7 +17,6 @@ import {
   LayoutDashboard,
   Map,
   Users,
-  Church,
   ClipboardCheck,
   Settings,
   Shield,
@@ -26,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPinHouse,
+  HandHeart,
 } from "lucide-react";
 
 const menuItems = [
@@ -66,7 +66,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     >
       {/* Header */}
       <div className="flex items-center h-16 px-4 border-b border-sidebar-border shrink-0">
-        <Church className="h-6 w-6 text-primary shrink-0" />
+        <HandHeart className="h-6 w-6 text-primary shrink-0" />
         {!collapsed && (
           <div className="ml-3 overflow-hidden">
             <h1 className="text-sm font-bold truncate text-sidebar-foreground">
@@ -196,7 +196,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </Button>
               </SheetTrigger>
             </Sheet>
-            <Church className="h-5 w-5 text-primary" />
+            <HandHeart className="h-5 w-5 text-primary" />
             <span className="font-semibold text-sm">{activeItem?.label || "WebGIS"}</span>
           </header>
         )}

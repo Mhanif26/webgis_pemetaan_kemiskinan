@@ -2,6 +2,7 @@ import { trpc } from "@/providers/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Users,
   MapPin,
@@ -26,9 +27,13 @@ import {
 const COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const { data: stats, isLoading: statsLoading } = trpc.dashboard.stats.useQuery();
   const { data: activities, isLoading: actLoading } =
-    trpc.dashboard.activities.useQuery({ limit: 10 });
+    trpc.dashboard.activities.useQuery(
+      { limit: 10 },
+      { enabled: !!user && user.role === "admin" }
+    );
 
   const statCards = [
     {
@@ -215,90 +220,92 @@ export default function Dashboard() {
       </div>
 
       {/* Activity Table */}
-      <Card className="rounded-2xl shadow-sm border-0 bg-white dark:bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            Aktivitas Terbaru
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {actLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (activities ?? []).length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">
-              Belum ada aktivitas
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">
-                      Aksi
-                    </th>
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">
-                      Entitas
-                    </th>
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">
-                      Detail
-                    </th>
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">
-                      Waktu
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(activities ?? []).map((act) => (
-                    <tr
-                      key={act.id}
-                      className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                    >
-                      <td className="py-3 px-2">
-                        <Badge
-                          variant={
-                            act.action === "CREATE"
-                              ? "default"
-                              : act.action === "VERIFY"
-                              ? "secondary"
-                              : act.action === "DELETE"
-                              ? "destructive"
-                              : "outline"
-                          }
-                          className="text-xs capitalize"
-                        >
-                          {act.action.toLowerCase()}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-2 capitalize text-muted-foreground">
-                        {act.entityType.replace(/_/g, " ")}
-                      </td>
-                      <td className="py-3 px-2 max-w-[300px] truncate">
-                        {act.details}
-                      </td>
-                      <td className="py-3 px-2 text-muted-foreground whitespace-nowrap">
-                        {act.createdAt
-                          ? new Date(act.createdAt).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "-"}
-                      </td>
+      {user?.role === "admin" && (
+        <Card className="rounded-2xl shadow-sm border-0 bg-white dark:bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              Aktivitas Terbaru
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {actLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : (activities ?? []).length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">
+                Belum ada aktivitas
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">
+                        Aksi
+                      </th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">
+                        Entitas
+                      </th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">
+                        Detail
+                      </th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">
+                        Waktu
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </thead>
+                  <tbody>
+                    {(activities ?? []).map((act) => (
+                      <tr
+                        key={act.id}
+                        className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="py-3 px-2">
+                          <Badge
+                            variant={
+                              act.action === "CREATE"
+                                ? "default"
+                                : act.action === "VERIFY"
+                                ? "secondary"
+                                : act.action === "DELETE"
+                                ? "destructive"
+                                : "outline"
+                            }
+                            className="text-xs capitalize"
+                          >
+                            {act.action.toLowerCase()}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-2 capitalize text-muted-foreground">
+                          {act.entityType.replace(/_/g, " ")}
+                        </td>
+                        <td className="py-3 px-2 max-w-[300px] truncate">
+                          {act.details}
+                        </td>
+                        <td className="py-3 px-2 text-muted-foreground whitespace-nowrap">
+                          {act.createdAt
+                            ? new Date(act.createdAt).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

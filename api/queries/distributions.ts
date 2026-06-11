@@ -1,12 +1,22 @@
-import { eq, and, desc, count, sql } from "drizzle-orm";
+import { eq, and, desc, count, sql, inArray } from "drizzle-orm";
 import { getDb } from "./connection";
 import { distributions } from "@db/schema";
 import type { InsertDistribution } from "@db/schema";
 
-export async function findAllDistributions(placeOfWorshipId?: number, recipientId?: number) {
+export async function findAllDistributions(placeOfWorshipIds?: number | number[], recipientId?: number) {
   const db = getDb();
   const conditions = [];
-  if (placeOfWorshipId) conditions.push(eq(distributions.placeOfWorshipId, placeOfWorshipId));
+  if (placeOfWorshipIds !== undefined) {
+    if (Array.isArray(placeOfWorshipIds)) {
+      if (placeOfWorshipIds.length > 0) {
+        conditions.push(inArray(distributions.placeOfWorshipId, placeOfWorshipIds));
+      } else {
+        conditions.push(sql`1 = 0`);
+      }
+    } else {
+      conditions.push(eq(distributions.placeOfWorshipId, placeOfWorshipIds));
+    }
+  }
   if (recipientId) conditions.push(eq(distributions.recipientId, recipientId));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   return db.select().from(distributions).where(where).orderBy(desc(distributions.distributionDate));

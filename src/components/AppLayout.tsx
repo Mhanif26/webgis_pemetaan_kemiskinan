@@ -33,9 +33,14 @@ const menuItems = [
   { icon: Map, label: "Peta GIS", path: "/map" },
   { icon: Users, label: "Penerima Bantuan", path: "/recipients" },
   { icon: MapPinHouse, label: "Rumah Ibadah", path: "/places" },
-  { icon: ClipboardCheck, label: "Verifikasi", path: "/verification" },
-  { icon: Shield, label: "Pengguna", path: "/users", adminOnly: true },
-  { icon: Settings, label: "Pengaturan", path: "/settings" },
+  {
+    icon: ClipboardCheck,
+    label: "Verifikasi",
+    path: "/verification",
+    roles: ["admin", "officer"],
+  },
+  { icon: Shield, label: "Pengguna", path: "/users", roles: ["admin"] },
+  { icon: Settings, label: "Pengaturan", path: "/settings", roles: ["admin"] },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -46,11 +51,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isAdmin = user?.role === "admin";
   const activeItem = menuItems.find((item) => item.path === location.pathname);
 
   const filteredItems = menuItems.filter(
-    (item) => !item.adminOnly || isAdmin
+    (item) => !item.roles || (user?.role && item.roles.includes(user.role))
   );
 
   const sidebarWidth = collapsed ? 72 : 260;
@@ -95,11 +99,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             >
               <item.icon className="h-[18px] w-[18px] shrink-0" />
               {!collapsed && <span className="truncate">{item.label}</span>}
-              {!collapsed && item.adminOnly && (
-                <Badge variant="outline" className="ml-auto text-[9px] px-1 py-0 h-4">
-                  Admin
-                </Badge>
-              )}
             </button>
           );
         })}

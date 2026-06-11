@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { DocumentUploadField } from "@/components/DocumentUploadField";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ClipboardCheck,
@@ -182,6 +183,16 @@ export default function VerificationPage() {
                       )}
                       {r.notes && (
                         <p className="text-xs bg-muted p-2 rounded-lg">{r.notes}</p>
+                      )}
+                      {(r.ktpDocument || r.kkDocument || r.sktmDocument) && (
+                        <div className="space-y-2 pt-2">
+                          <p className="text-[11px] font-medium text-muted-foreground">Preview Dokumen</p>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <DocumentUploadField label="KTP" value={r.ktpDocument} />
+                            <DocumentUploadField label="KK" value={r.kkDocument} />
+                            <DocumentUploadField label="SKTM" value={r.sktmDocument} />
+                          </div>
+                        </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
